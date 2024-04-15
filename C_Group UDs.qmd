@@ -1,0 +1,242 @@
+---
+title: "C_Plotting group UDs"
+format: pdf
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+### Set your working directory
+
+```{r}
+setwd("~/Desktop/R_for_sea_turtle_spatial_analysis")
+```
+
+### Load the packages
+
+```{r}
+source("R/load_libraries.R")
+```
+
+### Load data if not already in the workspace
+
+Adjust the names of the files in below chunk based on what was created/saved in previous steps
+
+```{r}
+load("processed_data/predict_samples_NAVFAC_NavyBaseGuam.RData")
+load("processed_data/ud_df_NAVFAC_NavyBaseGuam.RData")
+
+meta_data <- read_csv("raw_data/Metadata_PACFLEET_NBG.csv",show_col_types = FALSE) %>% 
+  clean_names() %>% filter(project=="NAVFAC_NavyBaseGuam ") %>%
+  rename(deploy_id = ptt_unique_id) %>% 
+  mutate(
+    deploy_date = mdy(deploy_date)
+    ) %>% 
+  dplyr::select(-pi_ttag_left)
+
+ud_data <- select(ud_df, deploy_id, data, ess, area95, area50, ud_full, ud_95, ud_50)
+ud_data <- left_join(ud_df, meta_data)
+```
+
+### Capture location spatial points
+
+```{r}
+capt_loc <- meta_data %>% select(deploy_id, capture_longitude, capture_latitude) %>% 
+  st_as_sf(coords = c("capture_longitude","capture_latitude"), crs=4326)
+capt_loc <- st_transform(capt_loc, st_crs(land))
+
+
+locs <- select(locs, deploy_id, data, pred, sample, ess)
+locs <- left_join(locs, meta_data)
+```
+
+### Define Species tag groups
+
+```{r}
+ud_data$tag_type <- str_replace(ud_data$tag_brand_type, " Wildlife Computers", "")
+locs$tag_type <- str_replace(locs$tag_brand_type, " Wildlife Computers", "")
+
+ud_data$spp_tag <- paste(ud_data$species, ud_data$tag_type, sep = " / ") 
+locs$spp_tag <- paste(locs$species, locs$tag_type, sep = " / ") 
+```
+
+### Function to find HPD of UD
+
+[ARG: I'm not really sure what this step does or why it brings in a tile raster]{.underline}
+
+```{r}
+locs_bbox <- st_expand(st_bbox(land), 0.2) %>% st_as_sfc()
+esri_tiles <- osm.raster(sf::as_Spatial(locs_bbox),
+                         type = esri_ocean, zoomin = 2,
+                         progress = "none", crop = FALSE)
+esri_tiles <- terra::rast(esri_tiles)
+terra::crs(esri_tiles) <- "EPSG:6637"
+```
+
+### Create directory for group UDs
+
+```{r}
+if(!dir.exists("group_ud_files_NavyMarianas")){dir.create("group_ud_files_NavyMarianas")}
+if(!dir.exists("plots/group_uds_NavyMarianas")){dir.create("plots/group_uds_NavyMarianas")}
+
+```
+
+## Group specific code starts here:
+
+Define a group here. To change group variable, replace 'general_location' with desired grouping variable
+
+```{r}
+GROUP_VAR <- "general_location"
+
+plot_dir <- paste0("plots/group_uds_NavyMarianas/", GROUP_VAR, "/")
+dir.create(plot_dir)
+
+file_dir <- paste0("group_ud_files_NavyMarianas/", GROUP_VAR, "/")
+dir.create(file_dir)
+dir.create(paste0(file_dir, "ud_full"))
+dir.create(paste0(file_dir, "ud_95"))
+dir.create(paste0(file_dir, "ud_50"))
+```
+
+### Splitting by species (and by tag type if desired)
+
+If you want to separate UDs by species only (Not by tag type, i.e., SPLASH vs SPOT), you would use the following code:
+
+```{r}
+ud_group_df <- ud_data %>% group_by(.data[[GROUP_VAR]], species) %>% nest() %>% 
+  arrange( species, .data[[GROUP_VAR]]) %>% 
+  mutate(area95 = NA, area50 = NA, ud_full=NA, ud_95=NA, ud_50=NA) 
+locs_group <- locs %>% group_by(.data[[GROUP_VAR]], species) %>% nest() %>% 
+  arrange( species, .data[[GROUP_VAR]])
+```
+
+If you want to separate UDs by species AND tag type (i.e., SPLASH vs SPOT), you would use the following code:
+
+```{r}
+ud_group_df <- ud_data %>% group_by(.data[[GROUP_VAR]], species, tag_type) %>% nest() %>% 
+ arrange( species, tag_type, .data[[GROUP_VAR]]) %>% 
+ mutate(area95 = NA, area50 = NA, ud_full=NA, ud_95=NA, ud_50=NA) 
+ locs_group <- locs %>% group_by(.data[[GROUP_VAR]], species, tag_type) %>% nest() %>% 
+ arrange( species, tag_type, .data[[GROUP_VAR]])
+```
+
+### Loop over by groups
+
+```{r}
+with_progress({ # Takes a while, so adding progress bar
+  G <- nrow(ud_group_df)
+  p <- progressor(G)
+  for(g in 1:G){
+    grp_lvl <-  paste(as.vector(ungroup(locs_group[g,1:(ncol(locs_group)-1)])), collapse="_") %>% 
+      gsub("\\/", "-", .)
+    g_locs <- locs_group[g,]$data[[1]]$sample
+    N <- length(g_locs)
+    ud_95_files <- ud_group_df[g,]$data[[1]]$ud_95
+    ud_lst <- foreach(i=1:N)%do%{
+      readRDS(ud_95_files[[i]]) %>% st_geometry %>% st_union
+    }
+    bb <- lapply(g_locs, st_bbox_list) %>% lapply(st_as_sfc) %>% st_bbox_list %>% 
+      st_as_sfc %>% st_buffer(20000) 
+    grd1 <- cu_ud_grid(bb, n=c(15,15))
+    ud1 <- foreach(i=1:N)%do%{
+      tmp <- cu_empirical_ud(g_locs[[i]], grid=grd1)
+      tmp$ud <- tmp$mean_pts/sum(tmp$mean_pts)
+      attr(tmp, "is_ud") <- TRUE
+      tmp2 <- cu_hud(tmp, 0.95)
+      if(nrow(tmp2)==0){
+        tmp <- tmp[tmp$ud!=0, ]
+      } else{
+        tmp <- tmp2
+      }
+      tmp
+    }
+    
+    grd2 <- st_bbox_list(ud1) %>% st_as_sfc %>% st_buffer(2000) %>% 
+      cu_ud_grid(barrier=land, cellsize=100)
+    
+    # plan("multisession", workers=7) # uncomment for parallel processing
+    ud2 <- foreach(j=1:N, .packages=c("sf","dplyr")) %do% {
+      cu_kde_ud_sample(g_locs[[j]][1:8], grd2)
+    }
+    
+    ud <- cu_avg_ud(ud2, w="ess")
+    ud_cont <- cu_ud_contour(ud, c(0.95,0.5))
+    ud_cont_poly <- ud_cont %>% st_cast("POLYGON")
+    # ud %>% cu_hud() %>% mapview(zcol='ud')
+    
+    # Save UD data and create 95% and 50% UD quantiles
+    ud_group_df$ud_full[g] <- paste0(file_dir,"ud_full/",grp_lvl,".rds")
+    saveRDS(ud, file=ud_group_df$ud_full[g])
+    
+    ud95 <- cu_hud(ud, 0.95)
+    ud_group_df$area95[[g]] <- ud_area(ud95)
+    ud_group_df$ud_95[g] <- paste0(file_dir,"ud_95/",grp_lvl,".rds")
+    saveRDS(ud95, file=ud_group_df$ud_95[g])
+    
+    ud50 <- cu_hud(ud, 0.50)
+    ud_group_df$area50[[g]] <- ud_area(ud50)
+    ud_group_df$ud_50[g] <- paste0(file_dir,"ud_50/",grp_lvl,".rds")
+    saveRDS(ud50, file=ud_group_df$ud_50[g])
+    
+    pts <- locs_group$data[[g]]$data %>% do.call(bind_rows,.) %>% 
+      select(ptt) %>% mutate(ptt = factor(ptt))
+    n_anim <- nrow(locs_group$data[[g]])
+    
+    ## Capture locs - Gaos: grey these out and the capt line furhter down to eliminate capture locations
+    capt_pts <- capt_loc %>% filter(deploy_id %in% locs_group$data[[g]]$deploy_id)
+    capt_pts$deploy_id <- factor(capt_pts$deploy_id)
+    
+    # Plots
+    bbb <- st_buffer(ud95, 1500) |> st_bbox() |> st_as_sfc()
+    
+    ###
+    ### See http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf
+    ### if you want to change homerange colors and 
+    ### https://colorbrewer2.org/ for the PTT color palette
+    ###
+    
+    #ptt_palatte <- colorRampPalette(brewer.pal(8, "Set2")) # original palette for any number of animals
+    #ptt_palatte <- colorRampPalette(gray(c(0.2,0.8))) # a gray scale palette
+    
+    ppp <- ggplot() +
+      annotation_spatial(esri_tiles) + 
+      layer_spatial(bbb, fill=NA, size=0, color=NA) +
+      #Devin original code: 
+      #annotation_spatial(pts, aes(color=ptt), size=0.25, alpha=1) +
+  
+  #Gaos: 
+  # all black. Grey out palatte lines above, as well as annotation line above, and use this: 
+  annotation_spatial(pts, color = "black", size=0.25, alpha=0.05) + 
+      
+      scale_color_manual(values=ptt_palatte(n_anim)) +                # ptt colors
+      guides(color = guide_legend(override.aes = list(size = 2))) +
+      labs(color = "PTT") + 
+      # layer_spatial(ud_cont[1,], color="royalblue4", lwd=0.75) +      # 95% quantile
+      # layer_spatial(ud_cont_pol[2,], color="gold", lwd=0.75) +            # 50% quantile
+      layer_spatial(ud_cont_poly[1,], color="royalblue", lwd=0.25, fill="royalblue", alpha=0.3) +      # 95% quantile polygon
+      layer_spatial(ud_cont_poly[2,], color="firebrick2", lwd=0.25, fill="firebrick2", alpha=0.3) +    # 50% quantile polygon
+      annotation_spatial(land, fill = "gray50", size = 0) +           # land
+      layer_spatial(capt_pts, size=2, alpha=1, color="black", shape=3) + # capture locations see http://www.sthda.com/english/wiki/ggplot2-point-shapes to change shape
+      theme_bw() + theme(panel.grid.major = element_blank(), 
+                         panel.grid.minor = element_blank(),
+                         axis.ticks=element_blank(), axis.text=element_blank()) +
+      annotation_scale()
+    ggsave(ppp, file=paste0(plot_dir, grp_lvl,".png"), width=6.5, height=4)
+    
+    p()
+    
+  } # Group loop end
+})
+```
+
+### Save output
+
+```{r}
+save(ud_group_df, land, file="processed_data/ud_group_df_NavyMarianas.RData")
+```
+
+### Write out ud_group_df as a csv so it will give all the UD area info
+
+```{r}
+ud_group_df %>% select(-data) %>% write_csv("processed_data/ud_group_df_nodata.csv")
+```

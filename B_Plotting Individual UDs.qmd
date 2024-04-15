@@ -1,0 +1,175 @@
+---
+title: "B_Plotting individual UDs"
+format: pdf
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+[ARG: Devin developed the code for Group UDs prior to the code for individual UD, thus the latter actually depends on steps in the former. We don't want this...we want to be able to calculate individual UDs (hence why I have made this step 4 here) and the user can calculate group UDs if they want (using step 5).]{.underline}
+
+### Set your working directory
+
+```{r}
+setwd("~/Desktop/R_for_sea_turtle_spatial_analysis")
+```
+
+### Load the packages
+
+```{r}
+source("R/load_libraries.R")
+```
+
+### Load data if not already in the workspace
+
+Adjust the names of the files in below chunk based on what was created/saved in previous steps
+
+```{r}
+load("processed_data/predict_samples_NavyMarianas.RData")
+load("processed_data/ud_df_NavyMarianas.RData")
+
+meta_data <- read_csv("raw_data/Metadata_PACFLEET_NBG.csv",show_col_types = FALSE) %>% 
+  clean_names() %>% filter(project=="PACFLEET_NavyMarianas") %>% 
+  rename(deploy_id = ptt_unique_id) %>% 
+  mutate(
+    deploy_date = mdy(deploy_date)
+  ) %>% 
+  dplyr::select(-pi_ttag_left)
+
+ud_data <- select(ud_df, deploy_id, data, ess, area95, area50, ud_full, ud_95, ud_50)
+ud_data <- left_join(ud_df, meta_data)
+
+```
+
+### Capture location spatial points
+
+[ARG: The code in the first chunk below is only in the UD plots for all individual turtles being processed at the same, it isn't in the later code where we could calculate UD for each individual turtle, or the Group UD code.]{.underline}
+
+```{r}
+capt_loc <- meta_data %>% select(deploy_id, capture_longitude, capture_latitude) %>% 
+  st_as_sf(coords = c("capture_longitude","capture_latitude"), crs=4326)
+capt_loc <- st_transform(capt_loc, st_crs(land))
+```
+
+```{r}
+locs <- select(locs, deploy_id, data, pred, sample, ess)
+locs <- left_join(locs, meta_data)
+```
+
+### Create output folder
+
+Adjust names of files as necessary
+
+```{r}
+if(!dir.exists("plots/group_uds_NavyMarianas/singles")){dir.create("plots/group_uds_NavyMarianas/singles")}
+
+```
+
+### Function to find HPD of UD
+
+[ARG: I'm not really sure what this step does or why it brings in a tile raster]{.underline}
+
+```{r}
+locs_bbox <- st_expand(st_bbox(land), 0.2) %>% st_as_sfc()
+esri_tiles <- osm.raster(sf::as_Spatial(locs_bbox),
+                         type = esri_ocean, zoomin = 2,
+                         progress = "none", crop = FALSE)
+esri_tiles <- terra::rast(esri_tiles)
+terra::crs(esri_tiles) <- "EPSG:6637"
+```
+
+### Indicate tag(s) to be processed for UDs
+
+Can calculate UDs for all tags in a data set or for individuals tags
+
+[To calculate the UDs of all tags in a data set AT ONCE, use the code in this chunk (skip to next chunk for individual tags):]{.underline}
+
+```{r}
+for(i in 1:nrow(ud_data)){
+  
+  PTT <- ud_data$deploy_id[[i]]
+  
+  ud_single_df <- ud_data %>% filter(deploy_id==PTT)
+  
+  locs_single <- locs %>% filter(deploy_id==PTT)
+  
+  ud <- readRDS(paste0("ud_files/ud_full/",PTT,".rds"))
+  ud_cont <- cu_ud_contour(ud, c(0.95,0.5))
+  ud_cont_poly <- ud_cont %>% st_cast("POLYGON")
+  
+  ## Capture locs
+  capt_pts <- capt_loc %>% filter(deploy_id==PTT)
+  
+  pts <- st_geometry(locs_single$data[[1]])
+  
+  # Plots
+  bbb <- st_buffer(ud_cont[1,], 1500) |> st_bbox() |> st_as_sfc()
+  
+  ###
+  ### See http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf
+  ### if you want to change homerange colors and 
+  ### https://colorbrewer2.org/ for the PTT color palette
+  ###
+  ppp <- ggplot() +
+    annotation_spatial(esri_tiles) + 
+    layer_spatial(bbb, fill=NA, size=0, color=NA) +
+    annotation_spatial(pts, size=0.25, alpha=0.5, color="black") + 
+    layer_spatial(ud_cont_poly[1,], color="royalblue", lwd=0.25, fill="royalblue", alpha=0.3) +      # 95% quantile polygon
+    layer_spatial(ud_cont_poly[2,], color="firebrick2", lwd=0.25, fill="firebrick2", alpha=0.3) +    # 50% quantile polygon
+    annotation_spatial(land, fill = "gray50", size = 0) + # land
+    layer_spatial(capt_pts, size=2, alpha=1, color="green", shape=3) +
+    theme_bw() + theme(panel.grid.major = element_blank(), 
+                       panel.grid.minor = element_blank(),
+                       axis.ticks=element_blank(), axis.text=element_blank()) +
+    annotation_scale()
+  
+  ggsave(ppp, file=paste0("plots/group_uds_NavyMarianas/singles/", PTT,"_contour.png"), width=6.5, height=4)
+}
+```
+
+[For the UDs of INDIVIDUAL TAGS IN A DATASET, use the code in this chunk:]{.underline}
+
+```{r}
+PTT <- 85491 #Change this PTT to the turtle/tag of interest
+  
+plot_dir <- paste0("plots/group_uds_NavyMarianas/singles/", PTT, "/")
+dir.create(plot_dir)
+
+ud_single_df <- ud_data %>% filter(deploy_id==PTT)
+
+locs_single <- locs %>% filter(deploy_id==PTT)
+
+ud <- readRDS(paste0("ud_files/ud_full/",PTT,".rds"))
+ud_cont <- cu_ud_contour(ud, c(0.95,0.5))
+ud_cont_poly <- ud_cont %>% st_cast("POLYGON")
+
+pts <- st_geometry(locs_single$data[[1]])
+
+# Plots
+bbb <- st_buffer(ud_cont[1,], 1500) |> st_bbox() |> st_as_sfc()
+
+###
+### See http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf
+### if you want to change homerange colors and 
+### https://colorbrewer2.org/ for the PTT color palette
+###
+ppp <- ggplot() +
+  annotation_spatial(esri_tiles) + 
+  # layer_spatial(ud95, aes(fill=ud), size=0, color=NA) +
+  layer_spatial(bbb, fill=NA, size=0, color=NA) +
+  annotation_spatial(pts, size=0.25, alpha=0.5, color="black") + 
+  layer_spatial(ud_cont_poly[1,], color="royalblue", lwd=0.25, fill="royalblue", alpha=0.3) +      # 95% quantile polygon
+  layer_spatial(ud_cont_poly[2,], color="firebrick2", lwd=0.25, fill="firebrick2", alpha=0.3) +    # 50% quantile polygon
+  annotation_spatial(land, fill = "gray50", size = 0) + # land
+  # scale_y_continuous(breaks=seq(-180,180,5)) +
+  # scale_x_continuous(breaks=seq(-180,180,10)) +
+  # # scale_fill_distiller(name= "UD", palette = "Reds", direction = 1) +
+  theme_bw() + theme(panel.grid.major = element_blank(), 
+                     panel.grid.minor = element_blank(),
+                     axis.ticks=element_blank(), axis.text=element_blank()) +
+  # theme(legend.position = "bottom") +
+  annotation_scale()
+
+ggsave(ppp, file=paste0(plot_dir, PTT,"_contour.png"), width=6.5, height=4)
+
+```

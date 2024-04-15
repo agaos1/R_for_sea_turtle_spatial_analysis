@@ -1,0 +1,64 @@
+---
+title: "A_Visualizing tracks"
+format: pdf
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+[This code chunk was taken from the Drifter processing step, but missing initial (i.e., data import) and end (i.e., saving) steps. This data needs to be adapted for visualizing tracks]{.underline}
+
+```{r}
+pred_to_track <- function(x){
+  x %>% st_geometry %>% st_combine %>% st_cast("LINESTRING")
+}
+pred_to_disp <- function(x){
+  x <- x[c(1,nrow(x)),]
+  x %>% st_geometry %>% st_combine %>% st_cast("LINESTRING")
+}
+
+
+tracklines <- dlocs %>% select(deploy_id, pred) %>% group_by(deploy_id) %>%
+  mutate(
+    track = map(pred, pred_to_track) %>% do.call(c,.),
+    track_dist_km = st_length(track %>% st_transform(4326)) %>% set_units("km"),
+    dispersal = map(pred, pred_to_disp) %>% do.call(c,.),
+    dispersal_dist_km = st_length(dispersal %>% st_transform(4326)) %>% set_units("km")
+  ) %>% select(-pred)
+
+tracklines %>% select(-track, -dispersal) %>% write_csv(file="processed_data/drifter_distance.csv")
+
+land <- ne_countries(return="sf", scale=10) |> st_make_valid()
+track_bbox <- st_expand(st_bbox(tracklines$track),ef=c(0, 0.3)) %>% st_as_sfc()
+big_bbox <- st_expand(st_bbox(track_bbox), ef=c(1, 0.1, 0.5, 1)) %>% st_as_sfc()
+land_trim <- st_expand(st_bbox(big_bbox), ef=1.05) %>% st_as_sfc() %>% st_transform(4326)
+land <- st_intersection(land, land_trim) %>% st_transform(st_crs(tracklines$track))
+
+
+for(i in 1:nrow(tracklines)){
+  ddd <- tracklines$track[i]
+  bbb <- st_buffer(ddd, 1000) %>% st_bbox %>% st_as_sfc
+  ppp <- ggplot() +
+    layer_spatial(ddd, color='turquoise2') +
+    layer_spatial(bbb, fill=NA, size=0, color=NA) +
+    annotation_spatial(land, fill = "gray30", size = 0) +
+    scale_y_continuous(breaks=seq(-180,180,5)) +
+    scale_x_continuous(breaks=seq(-180,180,10)) +
+    theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+    theme(legend.position = "None") +
+    ggtitle(paste0("Animal PTT: ", tracklines$deploy_id[[i]]))
+  ggsave(ppp, file=paste0("plots/drifters/",dlocs$deploy_id[[i]],".png"), width=6.5, height=4)
+  cat(i, " ")
+}
+
+tracklines$deploy_id <- as.character(tracklines$deploy_id)
+ppp_all <- ggplot() +
+  layer_spatial(tracklines$track, aes(color=tracklines$deploy_id), alpha=0.5) +
+  annotation_spatial(land, size = 0) +
+  layer_spatial(track_bbox, fill=NA, size=0, color=NA) +
+  scale_color_manual(values=met.brewer("Signac", nrow(tracklines))) +
+  scale_y_continuous(breaks=seq(-180,180,5)) +
+  scale_x_continuous(breaks=seq(10,180,5)) +
+  theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  labs(color="PTT")
+```

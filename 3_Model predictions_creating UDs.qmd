@@ -1,0 +1,255 @@
+---
+title: "Step 3 - Model predictions and create UDs"
+format: pdf
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+### Set your working directory
+
+setwd("\~/Desktop/R_for_sea_turtle_spatial_analysis")
+
+```{r}
+
+```
+
+### Load the packages
+
+```{r}
+source("R/load_libraries.R")
+```
+
+## Fit Brownian motion model to make predictions
+
+```{r}
+constr <- list(
+  lower=c(log(0.5), log(0.5), 3),
+  upper=rep(Inf,3)
+)
+
+locs <- locs %>% rowwise() %>% 
+  mutate(
+    fit = list(cu_crw_argos(data, bm=TRUE, crw_control=list(constr=constr)))
+  )
+```
+
+## Check that model was fitted to all animals
+
+```{r}
+sapply(locs$fit, class)
+```
+
+## (Optional) Refit any models that did not work
+
+E.g., for animal 3 (put this in a code chunk): locs\$fit\[3\] \<- list(cu_crw_argos(locs\$data\[\[3\]\], bm=TRUE, constr=constr))
+
+[ARG: I'm not really clear on what the code above actually does to "refit"]{.underline}
+
+## Create folder for processed_data (only needs to be done once)
+
+```{r}
+if(!dir.exists("processed_data")){
+  dir.create("processed_data", recursive=TRUE)
+}
+```
+
+## Export and save
+
+```{r}
+save(locs, land, vis_graph, file="processed_data/fitted_bm_data.RData")
+```
+
+### Make 1 hr predictions and posterior samples of observations
+
+```{r}
+locs_fit <- locs$fit
+locs_data <- locs$data
+N <- nrow(locs)
+```
+
+### Plan sequential
+
+[ARG: not really sure what these steps do]{.underline}
+
+```{r}
+plan("multisession", workers=7) # uncomment for parallel processing
+
+pred <- foreach(i=1:N, .options.future=list(packages=c("sf","dplyr","crawlUtils"), seed=TRUE)) %dofuture% {
+  cu_crw_predict(locs_fit[[i]], "1 hour", land, vis_graph) |> cu_extract_obst(locs_data[[i]])
+}
+
+sample <- foreach(i=1:N, .options.future=list(packages=c("sf","dplyr","crawlUtils"), seed=TRUE)) %dofuture% {
+  cu_crw_sample(locs_fit[[i]], 20)
+}
+
+plan("sequential")
+
+locs$pred <- pred; rm(pred)
+locs$sample <- sample; rm(sample)
+```
+
+## Plot individual tracks
+
+### Create folder for track plots
+
+```{r}
+if(!dir.exists("plots/Individual_tracks")){
+  dir.create("plots/Individual_tracks", recursive=TRUE)
+}
+```
+
+[ARG: not sure what these individual steps do:]{.underline}
+
+[ARG: When plotting for the Drifter tags, the 2 code chunks below for plotting individual tracks was different. I am not clear on exactly what is done different, but I believe the output is actual maps with tracks of the drifters (perhaps that's what LINESTRING does). We want to be able to to something similar so we can create maps with tracks for the turtles (or drifters), so I pasted said code into the chunk in the new Step 3_Visualizing tracks]{.underline}
+
+```{r}
+pred_to_track <- function(x){
+  x |> st_geometry() |> st_combine() |> st_cast("LINESTRING")
+}
+
+tracklines <- locs |> select(deploy_id, pred) |> rowwise() |>
+  mutate(
+    track = list(pred_to_track(pred)) #|> do.call(c,.)
+  ) |> select(-pred) |> ungroup()
+```
+
+```{r}
+for(i in 1:nrow(tracklines)){
+  ddd <- locs$pred[[i]] #tracklines$track[[i]]
+  bbb <- st_bbox(ddd) |> st_as_sfc() |> st_buffer(1000) 
+  ppp <- ggplot() +
+    layer_spatial(ddd, color='turquoise2') +
+    layer_spatial(bbb, fill=NA, size=0, color=NA) +
+    annotation_spatial(land, fill = "gray30", size = 0, alpha=0.1) +
+    scale_y_continuous(breaks=seq(-180,180,5)) +
+    scale_x_continuous(breaks=seq(-180,180,10)) +
+    theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+    theme(legend.position = "None") +
+    ggtitle(paste0("Animal PTT: ", tracklines$deploy_id[[i]]))
+  ggsave(ppp, file=paste0("plots/Individual_tracks/",locs$deploy_id[[i]],".png"), width=6.5, height=4)
+  cat(i, " ")
+}
+```
+
+```{r}
+locs <- locs |> rowwise() |> mutate(ess = cu_crw_ess(fit)) |> ungroup()
+```
+
+```{r}
+save(locs, land, vis_graph, tracklines, file="processed_data/predict_samples.RData")
+
+```
+
+## Create Individual UDs
+
+### Function to find area of HPD UD
+
+```{r}
+ud_area <- function(x){
+  x |> st_geometry() |> st_union() |> st_area() |> set_units("km^2")
+}
+```
+
+### Create UDs (Full, 95% and 50%)
+
+[ARG: I'm not clear if all the code below needs to be in a single chunk or if it can be broken up. Also, I am not sure what the #code below that mentions tag ptt 166331 is doing.]{.underline}
+
+```{r}
+ud_df <- locs |> 
+  select(deploy_id, species, scl, general_location, site_location, 
+         release_location, sex, data, ess) |>
+  mutate(area95 = NA, area50 = NA, ud_full=NA, ud_95=NA, ud_50=NA)
+
+if(!dir.exists("ud_files")){
+  dir.create("ud_files/ud_full", recursive=TRUE)
+  dir.create("ud_files/ud_95", recursive=TRUE)
+  dir.create("ud_files/ud_50", recursive=TRUE)
+}
+
+with_progress({ # Takes a while, so adding progress bar
+  n <- nrow(ud_df)
+  p <- progressor(n)
+  
+  locs_pred <- locs$pred
+  locs_sample <- locs$sample
+  locs_ess <- locs$ess
+  
+  for(i in 1:n){
+    
+    # Create indiv. grids and UDs for animal i
+    bb <- st_bbox_list(locs$sample[[i]]) |> st_as_sfc() |> st_buffer(2000) |> 
+      st_bbox()
+    grd <- cu_ud_grid(bb, land, cellsize=100)
+    bw_subset <- TRUE
+    # if(locs$deploy_id[[i]]=="166331"){bw_subset <- 1:225}
+    ud <- cu_kde_ud_sample(locs_sample[[i]], grid=grd, ess=locs_ess[[i]], bw_subset=bw_subset)
+    
+    # Save UD data and create 95% and 50% UD quantiles
+    ud_df$ud_full[i] <- paste0("ud_files/ud_full/",locs$deploy_id[[i]],".rds")
+    saveRDS(ud, file=ud_df$ud_full[i])
+    
+    # cnt <- cu_ud_contour(ud)
+    
+    ud95 <- cu_hud(ud, 0.95)
+    ud_df$area95[[i]] <- ud_area(ud95)
+    ud_df$ud_95[i] <- paste0("ud_files/ud_95/",locs$deploy_id[[i]],".rds")
+    saveRDS(ud95, file=ud_df$ud_95[i])
+    
+    ud50 <- cu_hud(ud, 0.50)
+    ud_df$area50[[i]] <- ud_area(ud50)
+    ud_df$ud_50[i] <- paste0("ud_files/ud_50/",locs$deploy_id[[i]],".rds")
+    saveRDS(ud50, file=ud_df$ud_50[i])
+    
+
+    # Plots
+    bbb <- st_buffer(ud95, 1000) |> st_bbox() |> st_as_sfc()
+    ppp <- ggplot() +
+      layer_spatial(ud95, aes(fill=ud), size=0, color=NA) +
+      layer_spatial(bbb, fill=NA, size=0, color=NA) +
+      annotation_spatial(land, fill = "gray30", size = 0) +
+      scale_y_continuous(breaks=seq(-180,180,5)) +
+      scale_x_continuous(breaks=seq(-180,180,10)) +
+      scale_fill_distiller(name= "UD", palette = "Reds", direction = 1) +
+      annotation_spatial(locs$data[[i]], color="brown4",alpha=1, cex=0.15) +
+      theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+      theme(legend.position = "None") +
+      ggtitle(paste0("Animal PTT: ", locs$deploy_id[[i]]))
+    ggsave(ppp, file=paste0("plots/Individual_uds/hpd_ud_95/",locs$deploy_id[[i]],".png"), width=6.5, height=4)
+    
+    # bbb <- st_buffer(ud50, 1000) |> st_bbox() |> st_as_sfc()
+    ppp <- ggplot() +
+      layer_spatial(ud50, aes(fill=ud), size=0, color=NA) +
+      layer_spatial(bbb, fill=NA, size=0, color=NA) +
+      annotation_spatial(land, fill = "gray30", size = 0) +
+      scale_y_continuous(breaks=seq(-180,180,5)) +
+      scale_x_continuous(breaks=seq(-180,180,10)) +
+      scale_fill_distiller(name= "UD", palette = "Reds", direction = 1) +
+      annotation_spatial(locs$data[[i]], color="brown4",alpha=1, cex=0.15) +
+      theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+      theme(legend.position = "None") +
+      ggtitle(paste0("Animal PTT: ", locs$deploy_id[[i]]))
+    ggsave(ppp, file=paste0("plots/Individual_uds/hpd_ud_50/",locs$deploy_id[[i]],".png"), width=6.5, height=4)
+    
+    p()
+  }
+})
+
+```
+
+### Save UD areas (km2) to external files
+
+```{r}
+ud_df %>% select(-data) %>% write_csv("processed_data/ud_df_nodata.csv")
+
+```
+
+### Save UDs to external files
+
+Change the end of the file name as appropriate
+
+```{r}
+save(ud_df, land, file="processed_data/ud_df_NavyMarianas.RData")
+save(locs, land, vis_graph, tracklines, file="processed_data/predict_track_NavyMarianas.RData")
+
+```

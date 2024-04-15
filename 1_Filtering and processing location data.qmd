@@ -1,0 +1,275 @@
+---
+title: "Step 1 - Filtering and processing location data"
+format: pdf
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+[ARG: Any underlined text in this document that start with ARG: represents notes to self on things that I need to further clarify and set up.]{.underline}
+
+[ARG: I added the load_libraries.R file]{.underline} [to the parent folder, but need Devin to confirm all the necessary packages are listed.]{.underline}
+
+# Folder and file preparation
+
+-   Ensure the working directory (folder) is named appropriately (will be used throughout process) and set the working directory, E.g.,
+
+    setwd("\~/Desktop/R_for_sea_turtle_spatial_analysis")
+
+    ```{r}
+
+    ```
+
+-   The default working directory for Quarto is the directory of the Quarto Rmd file, so if you are storing this Quarto Rmd file in a different folder than the working director, you'll need to tell Quarto. To do so, go to: `Tools -> Global Options -> R Markdown` and choose the option - Evaluate chunks in "Current" directory.
+
+-   At minimum the working directory must contain a folder titled as follows:
+
+    1.  raw_data
+
+        -   Within the raw_data folder there should be a folder titled "Indiv_tags" that contains all the raw source files for the tags of interest (i.e., all the files downloaded from Wildlife Computers) as well as a CSV file titled "Metadata" containing the data for all the tags.
+
+    2.  load_libraries.R
+
+        -   Should contain all the packages needed for any of the processing in this sea turtle spatial analysis R processing code.
+
+[ARG: We need to provide a header template for the Metadata file to ensure harmony with ongoing data processing steps.]{.underline}
+
+# [Step 1 - Initial data processing]{.underline}
+
+### Set your working directory
+
+### (Optional) Install packages
+
+[ARG: Devin said he can include that will install packages if needed, or bypass if already installed.]{.underline}
+
+If you don't already have the following packages installed, you need to do so first the code chunk below. They only need to be installed once, as you can subsequently just load them (subsequent code chunk).
+
+install.packages("tidyverse") install.packages("lubridate") install.packages("crawl") install.packages("sf") install.packages("mapview") install.packages("ggplot2") install.packages("ggspatial") install.packages("trip") install.packages("crsuggest") install.packages("foreach") install.packages("units") install.packages("janitor") install.packages("plotly") install.packages("pathroutr") install.packages('crawlUtils', type='source', repos='https://dsjohnson.r-universe.dev')
+
+```{r}
+
+```
+
+### Reinstall crawlUtils packages
+
+[ARG: Devin said he will review the best way to call in the crawlUtil package]{.underline}
+
+crawlUtils is constantly edited so it is important to re-download the beginning of every session using this code (select "Yes" if asked to install).:
+
+```{r}
+install.packages("remotes")
+remotes::install_github("dsjohnson/crawlUtils")
+```
+
+### (Optional) steps for installing crawlUtils
+
+If there are issues with installing crawlUtils, follow these steps:
+
+-   Step 1, install this package:
+
+install.packages('crawlUtils', dependencies= TRUE, repos='http://dsjohnson.r-universe.dev')
+
+```{r}
+
+```
+
+-   Step 2. Some dependencies may not be downloaded with the call above. Each dependency is installed individually by running the code below. NOTE: click 'yes' to 'Do you want to install from sources the package which needs compilation?' if it pops up.
+
+install.packages("sf") install.packages("fuzzyjoin") install.packages("foreach") install.packages("rmapshaper") install.packages("nngeo") install.packages("janitor") install.packages("progressr") install.packages("ctmm") install.packages("mvtnorm") install.packages("mapview") install.packages("sfnetworks")
+
+```{r}
+```
+
+### Load the packages
+
+```{r}
+source("R/load_libraries.R")
+```
+
+### Read in telemetry data, filter locations by Argos location class, and remove grossly inaccurate positions
+
+In the code chunk below we are removing only "Z" location classes, but can remove others as well (e.g., LC "0", "B", "A"). For the third step, the code keeps only locations within the latitudes and longitudes provided. One way to determine this is to use Google Maps and click on locations near your study site and identify nearby and appropriate lat and long for this filter.
+
+```{r}
+locs <- cu_read_wc_dirs("raw_data/indiv_tags") %>% 
+filter(quality!="Z") %>% 
+filter(longitude>144, longitude<146, latitude>13, latitude<16) 
+
+```
+
+### Filter locations with comments
+
+This filter was a quick and easy way to eliminate any location lines in the source file that has non-empty comments, with the idea that there might be some issues with those location lines. This is probably overkill and a course way to do this (you will lose some data that may be valid), but they represent \< 2% of all locations, so not considered a huge deal.
+
+```{r}
+locs <- filter(locs, is.na(comment))
+```
+
+### (Optional) Filter for GPS or Argos locations only
+
+You can keep only FastGPS locations or only Argos locations by placing the following code in an R chunk, respectively:
+
+locs \<- locs %\>% filter(type=="FastGPS")
+
+Or
+
+locs \<- locs %\>% filter(type=="Argos")
+
+```{r}
+
+```
+
+### Convert location data to simple feature (sf) points
+
+```{r}
+locs <- st_as_sf(locs, coords=c('longitude','latitude'), crs=4326)
+```
+
+### Import Metadata file
+
+Make sure metadata CSV file is simply called "Metadata". This chunk also cleans any potential issues with the names (e.g., spaces and special characters), then renames the deploy ID provided in the Wildlife Computers output so it is called "deploy_id". The mutate code then ensures the deploy dates are of the appropriate format for processing.
+
+### (Optional) Filter Metadata by project
+
+If your metadata has multiple projects (in the "Project" column, you can assign them here (you will need to specify the project name in the quotation marks, below it is "NAVFAC_NavyBaseGuam"). If only one project this line can be skipped/eliminated.
+
+```{r}
+meta_data <- read_csv("raw_data/Metadata.csv",show_col_types = FALSE) %>% 
+  clean_names() %>% 
+  filter(project=="NAVFAC_NavyBaseGuam") %>% #indicate project here or elminate this line
+  rename(deploy_id = ptt_unique_id) %>% 
+  mutate(deploy_date = mdy(deploy_date))
+```
+
+[ARG: Not sure what this step does:]{.underline}
+
+```{r}
+locs <- filter(locs, deploy_id %in% meta_data$deploy_id)
+```
+
+### Remove locations prior to deployment date
+
+The number of days eliminated post deployment can be edited here by changing the 1 to another number.
+
+[ARG: Devin said he can change this to hours so we can tweak it at a finer scale (e.g., 12 hrs, 24 hrs, 48 hrs, etc.)]{.underline}
+
+```{r}
+locs <- meta_data  %>% left_join(locs,.)
+locs <- filter(locs, datetime >= (deploy_date+1) )
+```
+
+### Add crawl columns
+
+Add columns for fitting CTCRW models to all data simultaneously
+
+```{r}
+locs <- cu_add_argos_cols(locs) 
+```
+
+### Remove duplicated locations
+
+Remove duplicate locations (i.e., same date and time)
+
+```{r}
+locs <- locs %>% group_by(deploy_id) %>% arrange(datetime, error_area) %>%
+  filter(!duplicated(datetime, fromLast=TRUE)) %>% ungroup() %>%
+  arrange(deploy_id, datetime)
+
+```
+
+### Run sda speed filter
+
+Here you can adjust the max speed between locations to remove biologically unreasonable results (i.e., the distance between three locations isn't realistic because a turtle can't move that fast. In code chunk below, the max speed =7.2 km/h = 2 m/s.
+
+[ARG: Turn angle is incorporated in this code (need to clarify default angle) Speed, distance, angle ...in trip package]{.underline}
+
+See:
+
+https://onlinelibrary.wiley.com/doi/full/10.1111/j.1748-7692.2007.00180.x?casa_token=AP2D16sj4I4AAAAA%3AEXLY23QX0WdBHr6xzU2IEO603U0beNMPDndJn-VXAYB4sm3QWkUvHTJbWqdJv0K7oD6QSolnM78eSgczI2Q
+
+```{r}
+locs$keep <-locs %>%
+  trip(c("datetime","deploy_id"),correct_all=FALSE) %>%
+  sda(smax=7.2) 
+
+locs <- filter(locs, keep)
+```
+
+[ARG: I moved the subsequent three sections (Header 3) so that rather than being subsequent to the data projection steps, they come before. Devin to confirm if feasible or if need to come after.]{.underline}
+
+### Tidy data to 1 row per animal
+
+```{r}
+locs <- locs %>% 
+  group_by(deploy_id, species, scl, general_location, site_location, release_location, sex) %>%
+  arrange(datetime) %>% nest() %>% arrange(deploy_id) %>% ungroup()
+```
+
+### Get number of locations per animal
+
+```{r}
+locs <- locs %>% rowwise() %>% mutate(
+  num_locs = nrow(data)
+)
+```
+
+### Remove PTTs with \< a certain number of locations:
+
+In this case it is tags with less than 20 locations, but that can be adjusted here.
+
+```{r}
+locs <- filter(locs, num_locs >= 20)
+
+```
+
+## 
+
+### Project data for CTCRW modeling
+
+[ARG: Devin to review the subsequent code for finding the appropriate projection (for area of interest)]{.underline}
+
+Used "Suggest_crs(locs)", to determine top projection. EPSG 6637 is the top projection for Guam.
+
+```{r}
+Suggest_crs(locs)
+```
+
+```{r}
+locs <- locs %>% st_transform(6637)
+```
+
+### Obtain a land polygon for mapping
+
+(Optional) you'll need to download the OSM data the first time you use it. This can take a while and shouldn't be necessary in future iterations.
+
+cu_download_osm(force = FALSE, save_as_sf = TRUE)
+
+```{r}
+
+```
+
+### Format the land polygon for mapping
+
+[ARG: does this simply add a box and a buffer to the top projection downloaded in previous step?]{.underline}
+
+land \<- locs %\>% st_bbox() %\>% st_expand(0.5) %\>% st_as_sfc() %\>% cu_osm_coast()
+
+```{r}
+
+```
+
+[ARG: SHOULD WE BE USING THE ABOVE TECHNIQURE OR THIS APPROACH?:]{.underline}
+
+land \<- read_sf("raw_data/marianas/marianas.shp")
+
+```{r}
+land <- read_sf("raw_data/marianas/marianas.shp")
+```
+
+### Create visibility graph for rerouting
+
+```{r}
+vis_graph <- pathroutr::prt_visgraph(land, centroids=TRUE)
+```
+
+## 
