@@ -1,0 +1,5 @@
+DeployID,Ptt,DepthSensor,Instr,Date,LocationQuality,Latitude,Longitude,Depth,Temperature,Source
+166333,166333,,Mk10,06:00:00 25-May-2017,,,,0.0,29.3,Status
+166333,166333,,Mk10,21:00:00 29-May-2017,,,,0.0,29.4,Status
+166333,166333,,Mk10,20:00:00 13-Jul-2017,,,,0.0,29.8,Status
+166333,166333,,Mk10,08:00:00 05-Aug-2017,,,,0.0,31.2,Status
