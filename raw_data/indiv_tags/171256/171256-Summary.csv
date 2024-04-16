@@ -1,0 +1,2 @@
+DeployID,Ptt,Instr,SW,PercentDecoded,Passes,PercentArgosLoc,MsgPerPass,DS,DI,MinPower,AvgPower,MaxPower,MinInterval,EarliestXmitTime,LatestXmitTime,XmitDays,EarliestDataTime,LatestDataTime,DataDays,ReleaseDate,ReleaseType,DeployDate
+171256,171256,UT,1.00a,80,857,99,1,1246,,,,,45,07:16:42 25-Oct-2017,23:01:22 21-Apr-2018,179,07:21:17 25-Oct-2017,00:00:00 19-Apr-2018,176,,,06:00:00 25-Oct-2017
