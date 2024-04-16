@@ -1,0 +1,2 @@
+DeployID,Ptt,Instr,SW,PercentDecoded,Passes,PercentArgosLoc,MsgPerPass,DS,DI,MinPower,AvgPower,MaxPower,MinInterval,EarliestXmitTime,LatestXmitTime,XmitDays,EarliestDataTime,LatestDataTime,DataDays,ReleaseDate,ReleaseType,DeployDate
+85492,85492,Mk10,,73,3488,98,1,4842,,,,,43,03:41:25 21-Aug-2013,22:37:17 16-Sep-2014,392,01:00:00 21-Aug-2013,03:04:22 16-Sep-2014,391,,,
