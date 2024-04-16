@@ -1,0 +1,4 @@
+DeployID,Ptt,DepthSensor,Instr,Date,LocationQuality,Latitude,Longitude,Depth,Temperature,Source
+178540,178540,,Mk10,12:00:00 16-Jul-2022,,,,0.0,29.8,Status
+178540,178540,,Mk10,19:00:00 02-Aug-2022,,,,0.0,29.4,Status
+178540,178540,,Mk10,09:00:00 03-Aug-2022,,,,0.0,30.4,Status
