@@ -1,0 +1,5 @@
+DeployID,Ptt,DepthSensor,Instr,Date,LocationQuality,Latitude,Longitude,Depth,Temperature,Source
+178571,178571,,Mk10,10:00:00 22-Sep-2019,,,,0.0,29.9,Status
+178571,178571,,Mk10,06:00:00 27-Oct-2019,,,,0.0,29.6,Status
+178571,178571,,Mk10,12:00:00 01-Nov-2019,,,,0.0,28.9,Status
+178571,178571,,Mk10,10:00:00 05-Nov-2019,,,,0.0,29.7,Status
