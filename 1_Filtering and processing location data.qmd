@@ -230,4 +230,6 @@ Here a visability graph is created for routing predicted or simulated track loca
 vis_graph <- pathroutr::prt_visgraph(land, centroids=TRUE)
 ```
 
-## 
+## Continue data analysis
+
+Continue into step 2 directly. If R is closed prior to Step 2, Step 1 will need to be run again.
