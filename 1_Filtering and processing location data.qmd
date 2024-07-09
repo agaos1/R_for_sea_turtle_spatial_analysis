@@ -41,7 +41,7 @@ The following chunk of code will check for the necessary packages (listed in `pa
 ```{r, output=FALSE}
 # Package names
 packages <- c("tidyverse","mapview","ggspatial","trip","crsuggest","units",
-              "plotly","sf", "janitor","lubridate","crsuggest","picMaps")
+              "plotly","sf", "janitor","lubridate","crsuggest","doFuture","picMaps")
 
 # R package repositories
 repos <- c(

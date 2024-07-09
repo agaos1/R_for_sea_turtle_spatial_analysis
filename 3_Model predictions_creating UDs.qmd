@@ -1,23 +1,17 @@
 ---
 title: "Step 3 - Model predictions and create UDs"
-format: pdf
-editor: visual
+format: html
+editor: source
 editor_options: 
   chunk_output_type: console
 ---
 
-### Set your working directory
-
-setwd("\~/Desktop/R_for_sea_turtle_spatial_analysis")
-
-```{r}
-
-```
-
-### Load the packages
+### Read in saved data and load packages
+If you previously stopped after step 2 and want to restart, you have to read in the saved data and load all the packages.
 
 ```{r}
-source("R/load_libraries.R")
+load("processed_data/clean_data.RData")
+invisible(lapply(packages, library, character.only = TRUE))
 ```
 
 ## Fit Brownian motion model to make predictions

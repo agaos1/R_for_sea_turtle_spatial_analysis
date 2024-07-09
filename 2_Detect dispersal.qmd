@@ -93,7 +93,6 @@ locs <- locs %>% rowwise() %>% mutate(
 ### Save output for continuing later
 If you would would like to pause here and continue working later you should save the products so you don't have to repeat these steps.
 ```{r}
-dir.create("processed_data")
 save(locs, land, vis_graph, packages, file="processed_data/migr_det_data.RData")
 ```
 Otherwise, you can continue with step 2 without saving.
