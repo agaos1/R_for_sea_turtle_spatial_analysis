@@ -1,0 +1,149 @@
+---
+title: "Step 3 - Model predictions and create UDs"
+format: html
+editor: source
+editor_options: 
+  chunk_output_type: console
+---
+
+### Read in saved data and load packages
+If you previously stopped after step 2 and want to restart, you have to read in the saved data and load all the packages.
+
+```{r}
+load("processed_data/migr_det_data.RData")
+invisible(lapply(packages, library, character.only = TRUE))
+```
+
+## Fit Brownian motion model to make predictions
+
+In this alaysis we are only interested in the nonmigratory segments so we will first remove those from the data.
+```{r}
+locs <- locs %>% rowwise() %>% mutate(
+  data = list(filter(data, migr_evt==0))
+)
+```
+
+Now we can fit a Brownian motion movement model to the data. 
+```{r}
+constr <- list(
+  lower=c(log(0.5), log(0.5), 3),
+  upper=rep(Inf,3)
+)
+
+N <- nrow(locs)
+
+locs_fit <- locs %>% select(deploy_id)
+locs_fit$fit <- foreach(i=1:N) %do% {
+  cu_crw_argos(locs$data[[i]], bm=TRUE, crw_control=list(constr=constr))
+}
+```
+
+## Check that model was fitted to all animals
+
+```{r}
+sapply(locs_fit$fit, class)
+```
+
+### (Optional) Refit any models that did not work
+The model seams to have fit for all animals (all values of the previous output are `"crwFit"`), however, if some did not fit satisfactorily, you can refit with the following code and it might work, e.g. for animal 3:
+```{r, eval=FALSE}
+# locs$fit[[3]] <- cu_crw_argos(locs$data[[3]], bm=TRUE, constr=constr)
+```
+Soetimes this works because there is a random process to get the starting values and sometimes bad values happen and if you refit it works better. 
+
+[ARG: I'm not really clear on what the code above actually does to "refit"]{.underline}
+
+
+### Make location predictions and posterior samples of observations
+
+Here we will make predictions as well as draw simulated true locations conditional on the data observed.
+```{r}
+locs_data <- locs %>% select(deploy_id, data)
+```
+
+[ARG: not really sure what these steps do]{.underline}
+
+We will use the `future` and `doFuture` packages to make use of parallel computing on multiple processors if desired. Use the following code to set up parallel computing. If you don't want to use it, just skip it. The `workers` argument tells the code how many cores to use. You can use the package/function `parallel::detectCores()` if you want to find out how many are avaialble. 
+```{r}
+plan("multisession", workers=8) # uncomment for parallel processing
+```
+
+Now we can make predictions using `%dofuture%` loops which are parallel. In the predict call we are also using the `pathroutr` package to route tracks around land. We accomplish this by making predictions at 1 hr intervals and the observations times, then routing the track around land. After that we extract the predicted locations at observation times. In the simulation draws we are just drawing locations at the observed times to account for location error in future analyses. 
+```{r}
+locs_pred <- locs %>% select(deploy_id)
+locs_pred$pred <- foreach(i=1:N, .options.future=list(packages=c("sf","dplyr","crawlUtils"), seed=TRUE)) %dofuture% {
+  cu_crw_predict(locs_fit$fit[[i]], "1 hour", land, vis_graph) %>% cu_extract_obst(locs_data$data[[i]])
+}
+
+locs_sample <- locs %>% select(deploy_id)
+locs_sample$sample <- foreach(i=1:N, .options.future=list(packages=c("sf","dplyr","crawlUtils"), seed=TRUE)) %dofuture% {
+  cu_crw_sample(locs_fit$fit[[i]], 20)
+}
+
+# You should always remove the parallel R instances when you are done
+plan("sequential")
+```
+
+## Plot individual tracks
+
+### Create folder for track plots
+
+```{r}
+if(!dir.exists("plots/Individual_tracks")){
+  dir.create("plots/Individual_tracks", recursive=TRUE)
+}
+```
+
+[ARG: not sure what these individual steps do:]{.underline}
+
+[ARG: When plotting for the Drifter tags, the 2 code chunks below for plotting individual tracks was different. I am not clear on exactly what is done different, but I believe the output is actual maps with tracks of the drifters (perhaps that's what LINESTRING does). We want to be able to to something similar so we can create maps with tracks for the turtles (or drifters), so I pasted said code into the chunk in the new Step 3_Visualizing tracks]{.underline}
+
+When plotting tracks, we first create a function to convert the point predictions to a line. Then convert the points to a line. 
+```{r}
+pred_to_track <- function(x){
+  x |> st_geometry() |> st_combine() |> st_cast("LINESTRING")
+}
+
+locs_pred <- locs_pred %>%  rowwise() %>% 
+  mutate(
+    track = list(pred_to_track(pred))
+  )
+```
+
+Now we can plot all the tracks for each PTT:
+```{r}
+for(i in 1:nrow(locs_pred)){
+  ddd <- locs_pred$track[[i]]
+  bbb <- st_bbox(ddd) %>%  st_as_sfc() %>% st_buffer(1000) 
+  ppp <- ggplot() +
+    layer_spatial(ddd, color='turquoise2') +
+    layer_spatial(bbb, fill=NA, size=0, color=NA) +
+    annotation_spatial(land, fill = "gray30", size = 0, alpha=0.1) +
+    #scale_y_continuous(breaks=seq(-180,180,1)) +
+    #scale_x_continuous(breaks=seq(-180,180,1)) +
+    theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+    theme(legend.position = "None") +
+    ggtitle(paste0("Animal PTT: ", locs_pred$deploy_id[[i]]))
+  ggsave(ppp, file=paste0("plots/Individual_tracks/",locs_pred$deploy_id[[i]],".png"), width=6.5, height=4)
+  cat(i, " ")
+}
+```
+
+
+## Estimating UDs
+Now we will begin to estimate individual UDs using the multiple imputation method to account for location error. See [Scharf et al. (2017)](https://link.springer.com/article/10.1007/s13253-017-0294-5). But first we will obtain the effective sample size of the data. The ESS estimates about how many independent locations are in the data after accounting for autocorrelation. This step can also be a little time consuming, so we also can run this in parallel
+```{r}
+locs_ess <- locs %>% select(deploy_id)
+plan("multisession", workers=8)
+locs_ess$ess <- foreach(i=1:nrow(locs_ess), .combine = 'c') %dofuture% {
+   cu_crw_ess(locs_fit$fit[[i]])
+}
+plan("sequential")
+```
+
+## Save results
+Now we can save the results for step 4, estimating UDs, etc. 
+```{r}
+save(locs_data, locs_pred, locs_sample, locs_ess, locs_fit, land, vis_graph, packages, file="processed_data/predict_samples.RData")
+```
+

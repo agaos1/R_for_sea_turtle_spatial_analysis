@@ -10,77 +10,78 @@ editor_options:
 If you previously stopped after step 2 and want to restart, you have to read in the saved data and load all the packages.
 
 ```{r}
-load("processed_data/clean_data.RData")
+load("processed_data/migr_det_data.RData")
 invisible(lapply(packages, library, character.only = TRUE))
 ```
 
 ## Fit Brownian motion model to make predictions
 
+In this alaysis we are only interested in the nonmigratory segments so we will first remove those from the data.
+```{r}
+locs <- locs %>% rowwise() %>% mutate(
+  data = list(filter(data, migr_evt==0))
+)
+```
+
+Now we can fit a Brownian motion movement model to the data. 
 ```{r}
 constr <- list(
   lower=c(log(0.5), log(0.5), 3),
   upper=rep(Inf,3)
 )
 
-locs <- locs %>% rowwise() %>% 
-  mutate(
-    fit = list(cu_crw_argos(data, bm=TRUE, crw_control=list(constr=constr)))
-  )
+N <- nrow(locs)
+
+locs_fit <- locs %>% select(deploy_id)
+locs_fit$fit <- foreach(i=1:N) %do% {
+  cu_crw_argos(locs$data[[i]], bm=TRUE, crw_control=list(constr=constr))
+}
 ```
 
 ## Check that model was fitted to all animals
 
 ```{r}
-sapply(locs$fit, class)
+sapply(locs_fit$fit, class)
 ```
 
-## (Optional) Refit any models that did not work
-
-E.g., for animal 3 (put this in a code chunk): locs\$fit\[3\] \<- list(cu_crw_argos(locs\$data\[\[3\]\], bm=TRUE, constr=constr))
+### (Optional) Refit any models that did not work
+The model seams to have fit for all animals (all values of the previous output are `"crwFit"`), however, if some did not fit satisfactorily, you can refit with the following code and it might work, e.g. for animal 3:
+```{r, eval=FALSE}
+# locs$fit[[3]] <- cu_crw_argos(locs$data[[3]], bm=TRUE, constr=constr)
+```
+Soetimes this works because there is a random process to get the starting values and sometimes bad values happen and if you refit it works better. 
 
 [ARG: I'm not really clear on what the code above actually does to "refit"]{.underline}
 
-## Create folder for processed_data (only needs to be done once)
 
+### Make location predictions and posterior samples of observations
+
+Here we will make predictions as well as draw simulated true locations conditional on the data observed.
 ```{r}
-if(!dir.exists("processed_data")){
-  dir.create("processed_data", recursive=TRUE)
-}
+locs_data <- locs %>% select(deploy_id, data)
 ```
-
-## Export and save
-
-```{r}
-save(locs, land, vis_graph, file="processed_data/fitted_bm_data.RData")
-```
-
-### Make 1 hr predictions and posterior samples of observations
-
-```{r}
-locs_fit <- locs$fit
-locs_data <- locs$data
-N <- nrow(locs)
-```
-
-### Plan sequential
 
 [ARG: not really sure what these steps do]{.underline}
 
+We will use the `future` and `doFuture` packages to make use of parallel computing on multiple processors if desired. Use the following code to set up parallel computing. If you don't want to use it, just skip it. The `workers` argument tells the code how many cores to use. You can use the package/function `parallel::detectCores()` if you want to find out how many are avaialble. 
 ```{r}
-plan("multisession", workers=7) # uncomment for parallel processing
+plan("multisession", workers=8) # uncomment for parallel processing
+```
 
-pred <- foreach(i=1:N, .options.future=list(packages=c("sf","dplyr","crawlUtils"), seed=TRUE)) %dofuture% {
-  cu_crw_predict(locs_fit[[i]], "1 hour", land, vis_graph) |> cu_extract_obst(locs_data[[i]])
+Now we can make predictions using `%dofuture%` loops which are parallel. In the predict call we are also using the `pathroutr` package to route tracks around land. We accomplish this by making predictions at 1 hr intervals and the observations times, then routing the track around land. After that we extract the predicted locations at observation times. In the simulation draws we are just drawing locations at the observed times to account for location error in future analyses. 
+```{r}
+locs_pred <- locs %>% select(deploy_id)
+locs_pred$pred <- foreach(i=1:N, .options.future=list(packages=c("sf","dplyr","crawlUtils"), seed=TRUE)) %dofuture% {
+  cu_crw_predict(locs_fit$fit[[i]], "1 hour", land, vis_graph) %>% cu_extract_obst(locs_data$data[[i]])
 }
 
-sample <- foreach(i=1:N, .options.future=list(packages=c("sf","dplyr","crawlUtils"), seed=TRUE)) %dofuture% {
-  cu_crw_sample(locs_fit[[i]], 20)
+locs_sample <- locs %>% select(deploy_id)
+locs_sample$sample <- foreach(i=1:N, .options.future=list(packages=c("sf","dplyr","crawlUtils"), seed=TRUE)) %dofuture% {
+  cu_crw_sample(locs_fit$fit[[i]], 20)
 }
 
+# You should always remove the parallel R instances when you are done
 plan("sequential")
-
-locs$pred <- pred; rm(pred)
-locs$sample <- sample; rm(sample)
 ```
 
 ## Plot individual tracks
@@ -97,42 +98,53 @@ if(!dir.exists("plots/Individual_tracks")){
 
 [ARG: When plotting for the Drifter tags, the 2 code chunks below for plotting individual tracks was different. I am not clear on exactly what is done different, but I believe the output is actual maps with tracks of the drifters (perhaps that's what LINESTRING does). We want to be able to to something similar so we can create maps with tracks for the turtles (or drifters), so I pasted said code into the chunk in the new Step 3_Visualizing tracks]{.underline}
 
+When plotting tracks, we first create a function to convert the point predictions to a line. Then convert the points to a line. 
 ```{r}
 pred_to_track <- function(x){
   x |> st_geometry() |> st_combine() |> st_cast("LINESTRING")
 }
 
-tracklines <- locs |> select(deploy_id, pred) |> rowwise() |>
+locs_pred <- locs_pred %>%  rowwise() %>% 
   mutate(
-    track = list(pred_to_track(pred)) #|> do.call(c,.)
-  ) |> select(-pred) |> ungroup()
+    track = list(pred_to_track(pred))
+  )
 ```
 
+Now we can plot all the tracks for each PTT:
 ```{r}
-for(i in 1:nrow(tracklines)){
-  ddd <- locs$pred[[i]] #tracklines$track[[i]]
-  bbb <- st_bbox(ddd) |> st_as_sfc() |> st_buffer(1000) 
+for(i in 1:nrow(locs_pred)){
+  ddd <- locs_pred$track[[i]]
+  bbb <- st_bbox(ddd) %>%  st_as_sfc() %>% st_buffer(1000) 
   ppp <- ggplot() +
     layer_spatial(ddd, color='turquoise2') +
     layer_spatial(bbb, fill=NA, size=0, color=NA) +
     annotation_spatial(land, fill = "gray30", size = 0, alpha=0.1) +
-    scale_y_continuous(breaks=seq(-180,180,5)) +
-    scale_x_continuous(breaks=seq(-180,180,10)) +
+    #scale_y_continuous(breaks=seq(-180,180,1)) +
+    #scale_x_continuous(breaks=seq(-180,180,1)) +
     theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
     theme(legend.position = "None") +
-    ggtitle(paste0("Animal PTT: ", tracklines$deploy_id[[i]]))
-  ggsave(ppp, file=paste0("plots/Individual_tracks/",locs$deploy_id[[i]],".png"), width=6.5, height=4)
+    ggtitle(paste0("Animal PTT: ", locs_pred$deploy_id[[i]]))
+  ggsave(ppp, file=paste0("plots/Individual_tracks/",locs_pred$deploy_id[[i]],".png"), width=6.5, height=4)
   cat(i, " ")
 }
 ```
 
+
+## Estimating UDs
+Now we will begin to estimate individual UDs using the multiple imputation method to account for location error. See [Scharf et al. (2017)](https://link.springer.com/article/10.1007/s13253-017-0294-5). But first we will obtain the effective sample size of the data. The ESS estimates about how many independent locations are in the data after accounting for autocorrelation. This step can also be a little time consuming, so we also can run this in parallel
 ```{r}
-locs <- locs |> rowwise() |> mutate(ess = cu_crw_ess(fit)) |> ungroup()
+locs_ess <- locs %>% select(deploy_id)
+plan("multisession", workers=8)
+locs_ess$ess <- foreach(i=1:nrow(locs_ess), .combine = 'c') %dofuture% {
+   cu_crw_ess(locs_fit$fit[[i]])
+}
+plan("sequential")
 ```
 
+## Save results
+Now we can save the results for step 4, estimating UDs, etc. 
 ```{r}
-save(locs, land, vis_graph, tracklines, file="processed_data/predict_samples.RData")
-
+save(locs_data, locs_pred, locs_sample, locs_ess, locs_fit, land, vis_graph, packages, file="processed_data/predict_samples.RData")
 ```
 
 ## Create Individual UDs
@@ -147,7 +159,7 @@ ud_area <- function(x){
 
 ### Create UDs (Full, 95% and 50%)
 
-[ARG: I'm not clear if all the code below needs to be in a single chunk or if it can be broken up. Also, I am not sure what the #code below that mentions tag ptt 166331 is doing.]{.underline}
+[ARG: I'm not clear if all the code below needs to be in a single chunk or if it can be broken up.]{.underline}
 
 ```{r}
 ud_df <- locs |> 
@@ -176,7 +188,6 @@ with_progress({ # Takes a while, so adding progress bar
       st_bbox()
     grd <- cu_ud_grid(bb, land, cellsize=100)
     bw_subset <- TRUE
-    # if(locs$deploy_id[[i]]=="166331"){bw_subset <- 1:225}
     ud <- cu_kde_ud_sample(locs_sample[[i]], grid=grd, ess=locs_ess[[i]], bw_subset=bw_subset)
     
     # Save UD data and create 95% and 50% UD quantiles
