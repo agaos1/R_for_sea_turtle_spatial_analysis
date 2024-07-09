@@ -114,7 +114,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>raw_data</li>
 </ol>
 <ul>
-<li>Within the raw_data folder there should be a folder titled “Indiv_tags” that contains all the raw source files for the tags of interest (i.e., all the files downloaded from Wildlife Computers) as well as a CSV file titled “Metadata” containing the data for all the tags.</li>
+<li>Within the raw_data folder there should be a folder titled “indiv_tags” that contains all the raw source files for the tags of interest (i.e., all the files downloaded from Wildlife Computers) as well as a CSV file titled “Metadata” containing the data for all the tags.</li>
 </ul>
 <ol start="2" type="1">
 <li>load_libraries.R</li>
@@ -146,25 +146,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>installed_packages <span class="ot">&lt;-</span> packages <span class="sc">%in%</span> <span class="fu">rownames</span>(<span class="fu">installed.packages</span>())</span>
 <span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="fu">c</span>(packages[<span class="sc">!</span>installed_packages], <span class="st">"crawlUtils"</span>), </span>
 <span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>                 <span class="at">repos=</span>repos, <span class="at">dependencies=</span><span class="cn">TRUE</span>)</span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Packages loading</span></span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="fu">invisible</span>(<span class="fu">lapply</span>(<span class="fu">c</span>(packages,<span class="st">"crawlUtils"</span>), library, <span class="at">character.only =</span> <span class="cn">TRUE</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>packages <span class="ot">&lt;-</span> <span class="fu">c</span>(packages,<span class="st">"crawlUtils"</span>)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Packages loading</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="fu">invisible</span>(<span class="fu">lapply</span>(packages, library, <span class="at">character.only =</span> <span class="cn">TRUE</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<!-- ### Reinstall crawlUtils packages -->
-<!-- [ARG: Devin said he will review the best way to call in the crawlUtil package]{.underline} -->
-<!-- crawlUtils is constantly edited so it is important to re-download the beginning of every session using this code (select "Yes" if asked to install).: -->
-<!-- ```{r} -->
-<!-- install.packages("remotes") -->
-<!-- remotes::install_github("dsjohnson/crawlUtils") -->
-<!-- ``` -->
-<!-- ### (Optional) steps for installing crawlUtils -->
-<!-- If there are issues with installing crawlUtils, follow these steps: -->
-<!-- -   Step 1, install this package: -->
-<!-- install.packages('crawlUtils', dependencies= TRUE, repos='http://dsjohnson.r-universe.dev') -->
-<!-- ```{r} -->
-<!-- ``` -->
-<!-- -   Step 2. Some dependencies may not be downloaded with the call above. Each dependency is installed individually by running the code below. NOTE: click 'yes' to 'Do you want to install from sources the package which needs compilation?' if it pops up. -->
-<!-- install.packages("sf") install.packages("fuzzyjoin") install.packages("foreach") install.packages("rmapshaper") install.packages("nngeo") install.packages("janitor") install.packages("progressr") install.packages("ctmm") install.packages("mvtnorm") install.packages("mapview") install.packages("sfnetworks") -->
 </section>
 <section id="read-in-telemetry-data-filter-locations-by-argos-location-class-and-remove-grossly-inaccurate-positions" class="level3">
 <h3 class="anchored" data-anchor-id="read-in-telemetry-data-filter-locations-by-argos-location-class-and-remove-grossly-inaccurate-positions">Read in telemetry data, filter locations by Argos location class, and remove grossly inaccurate positions</h3>
@@ -276,8 +262,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>locs <span class="ot">&lt;-</span> <span class="fu">filter</span>(locs, deploy_id <span class="sc">%in%</span> anim_locs<span class="sc">$</span>deploy_id)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
-<section id="section" class="level2">
-<h2 class="anchored" data-anchor-id="section"></h2>
 <section id="project-data-for-ctcrw-modeling" class="level3">
 <h3 class="anchored" data-anchor-id="project-data-for-ctcrw-modeling">Project data for CTCRW modeling</h3>
 <p><u>ARG: Devin to review the subsequent code for finding the appropriate projection (for area of interest)</u></p>
@@ -311,9 +295,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>vis_graph <span class="ot">&lt;-</span> pathroutr<span class="sc">::</span><span class="fu">prt_visgraph</span>(land, <span class="at">centroids=</span><span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
-</section>
-<section id="section-1" class="level2">
-<h2 class="anchored" data-anchor-id="section-1"></h2>
+<section id="save-output-for-continuing-later" class="level3">
+<h3 class="anchored" data-anchor-id="save-output-for-continuing-later">Save output for continuing later</h3>
+<p>If you would would like to pause here and continue working later you should save the products so you don’t have to repeat these steps.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">dir.create</span>(<span class="st">"processed_data"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning in dir.create("processed_data"): 'processed_data' already exists</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">save</span>(locs, land, vis_graph, packages, <span class="at">file=</span><span class="st">"processed_data/clean_data.RData"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Otherwise, you can continue with step 2 without saving.</p>
 </section>
 </section>
 

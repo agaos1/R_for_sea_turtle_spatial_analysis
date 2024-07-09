@@ -1,83 +1,99 @@
 ---
 title: "Step 2 - Detect dispersal"
-format: pdf
-editor: visual
+format: html
+editor: source
 editor_options: 
   chunk_output_type: console
 ---
 
 ## Detect dispersal from tagging release location and separating locations by date or movement phase
 
+### Read in save data
+If you previously stopped after step 2 and want to restart, you have to read in the saved data and load all the packages.
+
+```{r}
+load("processed_data/clean_data.RData")
+invisible(lapply(packages, library, character.only = TRUE))
+```
+
+The remainder of the functions only work on data sets of single deployments. So we first nest the data such that each row represents a single deployment.
+
+```{r}
+locs <- locs %>% group_by(deploy_id) %>% nest()
+```
+
+
 ### Create table of migration start and stop dates
 
 [ARG: clarify what adjusting the min_disp, phase_len, max_k (in code) does and if worth tweaking under certain scenarios.]{.underline}
 
+Now we can estimate migration start and stop dates, if there are any, in each deployment. The workhorse function for this is `cu_migration_det()`. The arguments used here are `min_disp`, the minimum distance that can be considered a migration displacement, `min_phase_len`, the minimum number of days a phase (stationary or migration) can be, and `max_k` is the degrees of freedom used for fitting the dispersion function. 
+
 ```{r}
 locs <- locs %>% rowwise() %>% mutate(
-  migr_tbl = list(cu_migration_det(data, min_disp=5, min_phase_len=3, max_k=50))
+  migr_tbl = list(cu_migration_det(data, min_disp=5, min_phase_len=3, max_k=30))
 )
 ```
 
 ### Create dispersal plots for each animal
 
 ```{r}
-locs$dispersal_plt <- foreach(i=1:nrow(locs))%do%{
-  cu_plot_disp(locs$data[[i]], locs$migr_tbl[[i]]) +
-    ggtitle(paste0("ID:",locs$deploy_id[[i]], " / row:",i))
-}
+locs$i <- 1:nrow(locs)
+locs <- locs %>% rowwise() %>% mutate(
+  dispersal_plt = list(cu_plot_disp(data, migr_tbl) + ggtitle(paste0("ID:",deploy_id, " / row:",i)))
+) %>% select(-i)
 ```
 
 ### Examine the dispersal plots for all animals
 
-```{r}
+```{r, eval=FALSE}
 locs$dispersal_plt
 
 ```
 
 ### Examine the dispersal plots for individual animals
 
-In this case we are looking at turtle 85
-
-[ARG: in this and a couple of the next steps it would be ideal to change the turtle number to PTT so we can more easily know how to inspect individual turtle tracks]{.underline}
-
+After looking through the plots of all animals you may way to examine some more closely and change the dates for migration, etc. Or, you may want to delete some locations. First let's look at PTT 178536 (row 37).It looks like the animal started departing for migration sooner than the `cu_migration_det()` function detected it. So we use the `plotly` package to create an interactive plot so that we can get the dates that we want.
 ```{r}
-locs$dispersal_plt[[85]] #Change the turtle number as needed
+locs$dispersal_plt[[37]] %>% ggplotly() #Change the turtle number as needed
+```
+If you hover over the points you will see that it looks like the animal began migration on August 23 rather than 25 as detected by the function. So we can change the date in the migration table then re-plot it. 
+```{r}
+locs$migr_tbl[[37]][1,]$end <- mdy("8/23/2022")
+locs$migr_tbl[[37]][2,]$start <- mdy("8/23/2022")
+locs$dispersal_plt[[37]] <- cu_plot_disp(locs$data[[37]], locs$migr_tbl[[37]]) + ggtitle(paste0("ID:",locs$deploy_id[[37]], " / row:",37))
+locs$dispersal_plt[[37]]
 ```
 
-Can make plots interactive to better examine departure and arrival dates
-
-In this case we're looking at turtle 85
-
+Now, if we look at PTT 171222 (row 23) we can see that there are some irregularities with the data that we should remove after October 2017. So we can follow the same procedure
 ```{r}
-locs$dispersal_plt[[85]] %>% ggplotly() #Change the turtle number as needed
+locs$dispersal_plt[[23]] %>% ggplotly() #Change the turtle number as needed
+locs$data[[23]] <- filter(locs$data[[23]], datetime < mdy("10-10-2017"))
+locs$dispersal_plt[[23]] <- cu_plot_disp(locs$data[[23]], locs$migr_tbl[[23]]) + ggtitle(paste0("ID:",locs$deploy_id[[23]], " / row:",23))
+locs$dispersal_plt[[23]]
+```
+The same thing seams to be happening with PTT 166331 (row 14) as well
+```{r}
+locs$dispersal_plt[[14]] %>% ggplotly() #Change the turtle number as needed
+locs$data[[14]] <- filter(locs$data[[14]], datetime < mdy("9-19-2017"))
+locs$dispersal_plt[[14]] <- cu_plot_disp(locs$data[[14]], locs$migr_tbl[[14]]) + ggtitle(paste0("ID:",locs$deploy_id[[14]], " / row:",14))
+locs$dispersal_plt[[14]]
+```
+The the second line in the previous two code chunks also shows how to select data based on dates in general.
+
+## Join locations to movement phases for individual turtles
+
+If the migration phases are acceptable we can combine the phase information with the data to select the data we want in future analyses, e.g., remove nonmigratory data for space use analysis. 
+```{r}
+locs <- locs %>% rowwise() %>% mutate(
+  data = list(cu_join_interval_tbl(data, migr_tbl))
+)
 ```
 
-## Filter locations by dates or movement phase for individual turtles
-
-The following code can be put in a code chunk and used to select locations prior to, after, or between specific dates. To do so you need to indicate the turtle number and the dates (as determined via the displacement plots calculated above). Note that if you want to reincorporate locations that have already been filtered, one would need to go back and rerun from the start of the code.
-
--   This code would keep locations after or on a particular date (adjust as necessary):
-
-locs\$data\[\[107\]\] \<- filter(locs\$data\[\[107\]\], datetime\>=ymd_hms("2019-09-10 02:00:00"))
-
--   This code would keep locations before or on a particular date (adjust as necessary):
-
-locs\$data\[\[107\]\] \<- filter(locs\$data\[\[107\]\], datetime\<=ymd_hms("2019-09-10 02:00:00"))
-
--   This code would keep locations between two particular dates (adjust as necessary):
-
-locs\$data\[\[107\]\] \<- filter(locs\$data\[\[107\]\], datetime\<=ymd_hms("2019-09-10 02:00:00"), datetime\>=ymd_hms("2022-07-16 00:00:00"))
-
+### Save output for continuing later
+If you would would like to pause here and continue working later you should save the products so you don't have to repeat these steps.
 ```{r}
-
+dir.create("processed_data")
+save(locs, land, vis_graph, packages, file="processed_data/migr_det_data.RData")
 ```
-
-### If you want to re-examine dispersal plots after plotting, use this code
-
-locs\$dispersal_plt \<- foreach(i=1:nrow(locs))%do%{ cu_plot_disp(locs\$data\[\[i\]\], locs\$migr_tbl\[\[i\]\]) + ggtitle(paste0("ID:",locs\$deploy_id\[\[i\]\], " / row:",i)) } locs\$dispersal_plt
-
-```{r}
-
-```
-
-[ARG: I would assume something needs to be saved here, but I'm not clear on what or how.]{.underline}
+Otherwise, you can continue with step 2 without saving.

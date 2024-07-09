@@ -24,7 +24,7 @@ dir <- getwd()
 
 1.  raw_data
 
--   Within the raw_data folder there should be a folder titled "Indiv_tags" that contains all the raw source files for the tags of interest (i.e., all the files downloaded from Wildlife Computers) as well as a CSV file titled "Metadata" containing the data for all the tags.
+-   Within the raw_data folder there should be a folder titled "indiv_tags" that contains all the raw source files for the tags of interest (i.e., all the files downloaded from Wildlife Computers) as well as a CSV file titled "Metadata" containing the data for all the tags.
 
 2.  load_libraries.R
 
@@ -55,37 +55,11 @@ repos <- c(
 installed_packages <- packages %in% rownames(installed.packages())
 install.packages(c(packages[!installed_packages], "crawlUtils"), 
                  repos=repos, dependencies=TRUE)
+packages <- c(packages,"crawlUtils")
 
 # Packages loading
-invisible(lapply(c(packages,"crawlUtils"), library, character.only = TRUE))
+invisible(lapply(packages, library, character.only = TRUE))
 ```
-
-<!-- ### Reinstall crawlUtils packages -->
-
-<!-- [ARG: Devin said he will review the best way to call in the crawlUtil package]{.underline} -->
-
-<!-- crawlUtils is constantly edited so it is important to re-download the beginning of every session using this code (select "Yes" if asked to install).: -->
-
-<!-- ```{r} -->
-<!-- install.packages("remotes") -->
-<!-- remotes::install_github("dsjohnson/crawlUtils") -->
-<!-- ``` -->
-
-<!-- ### (Optional) steps for installing crawlUtils -->
-
-<!-- If there are issues with installing crawlUtils, follow these steps: -->
-
-<!-- -   Step 1, install this package: -->
-
-<!-- install.packages('crawlUtils', dependencies= TRUE, repos='http://dsjohnson.r-universe.dev') -->
-
-<!-- ```{r} -->
-
-<!-- ``` -->
-
-<!-- -   Step 2. Some dependencies may not be downloaded with the call above. Each dependency is installed individually by running the code below. NOTE: click 'yes' to 'Do you want to install from sources the package which needs compilation?' if it pops up. -->
-
-<!-- install.packages("sf") install.packages("fuzzyjoin") install.packages("foreach") install.packages("rmapshaper") install.packages("nngeo") install.packages("janitor") install.packages("progressr") install.packages("ctmm") install.packages("mvtnorm") install.packages("mapview") install.packages("sfnetworks") -->
 
 
 ### Read in telemetry data, filter locations by Argos location class, and remove grossly inaccurate positions
@@ -208,7 +182,6 @@ locs <- filter(locs, deploy_id %in% anim_locs$deploy_id)
 
 ```
 
-## 
 
 ### Project data for CTCRW modeling
 
@@ -245,4 +218,10 @@ Here a visability graph is created for routing predicted or simulated track loca
 vis_graph <- pathroutr::prt_visgraph(land, centroids=TRUE)
 ```
 
-## 
+### Save output for continuing later
+If you would would like to pause here and continue working later you should save the products so you don't have to repeat these steps.
+```{r}
+dir.create("processed_data")
+save(locs, land, vis_graph, packages, file="processed_data/clean_data.RData")
+```
+Otherwise, you can continue with step 2 without saving.
