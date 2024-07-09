@@ -12,6 +12,7 @@ editor_options:
 If you previously stopped after step 2 and want to restart, you have to read in the saved data and load all the packages.
 
 ```{r}
+#| output: false
 load("processed_data/clean_data.RData")
 invisible(lapply(packages, library, character.only = TRUE))
 ```

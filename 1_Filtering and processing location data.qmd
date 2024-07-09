@@ -60,7 +60,7 @@ invisible(lapply(packages, library, character.only = TRUE))
 In the code chunk below we are removing only "Z" location classes, but can remove others as well (e.g., LC "0", "B", "A"). For the third step, the code keeps only locations within the latitudes and longitudes provided. One way to determine this is to use Google Maps and click on locations near your study site and identify nearby and appropriate lat and long for this filter.
 
 ```{r}
-locs <- cu_read_wc_dirs(file.path(dir, "raw_data/indiv_tags")) %>% 
+locs <- cu_read_wc_dirs("raw_data/indiv_tags") %>% 
   filter(quality!="Z") %>% 
   filter(longitude>144, longitude<146, latitude>13, latitude<16) 
 
@@ -105,7 +105,7 @@ Make sure metadata CSV file is simply called "Metadata". This chunk also cleans 
 If your metadata has multiple projects (in the "Project" column, you can assign them here (you will need to specify the project name in the quotation marks, below it is `"NAVFAC_NavyBaseGuam"`). If only one project this line can be skipped/eliminated.
 
 ```{r, output=FALSE}
-meta_data <- read_csv(file.path(dir,"raw_data/Metadata.csv")) %>% 
+meta_data <- read_csv("raw_data/Metadata.csv") %>% 
   clean_names() %>% 
   #indicate project here or eliminate this line
   filter(project=="NAVFAC_NavyBaseGuam") %>% 

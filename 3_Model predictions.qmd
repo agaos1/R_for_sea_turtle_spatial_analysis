@@ -10,6 +10,7 @@ editor_options:
 If you previously stopped after step 2 and want to restart, you have to read in the saved data and load all the packages.
 
 ```{r}
+#| output: false
 load("processed_data/migr_det_data.RData")
 invisible(lapply(packages, library, character.only = TRUE))
 ```
@@ -125,7 +126,6 @@ for(i in 1:nrow(locs_pred)){
     theme(legend.position = "None") +
     ggtitle(paste0("Animal PTT: ", locs_pred$deploy_id[[i]]))
   ggsave(ppp, file=paste0("plots/Individual_tracks/",locs_pred$deploy_id[[i]],".png"), width=6.5, height=4)
-  cat(i, " ")
 }
 ```
 
