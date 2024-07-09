@@ -1,7 +1,7 @@
 ---
 title: "Step 1 - Filtering and processing location data"
 format: html
-editor: visual
+editor: source
 editor_options: 
   chunk_output_type: console
 ---
@@ -36,7 +36,7 @@ dir <- getwd()
 
 ### Install and load packages
 
-The following chunk of code will check for the necessary packages (listed in `packages`) and if they are not installed on the users computer, will install them. They will then be loaded into the session. The `crawlUtils` package will be installed for every new session because it is under development. 
+The following chunk of code will check for the necessary packages (listed in `packages`) and if they are not installed on the users computer, will install them. They will then be loaded into the session. The `crawlUtils` package will be installed for every new session because it is under development.
 
 ```{r, output=FALSE}
 # Package names
@@ -60,7 +60,6 @@ packages <- c(packages,"crawlUtils")
 # Packages loading
 invisible(lapply(packages, library, character.only = TRUE))
 ```
-
 
 ### Read in telemetry data, filter locations by Argos location class, and remove grossly inaccurate positions
 
@@ -88,13 +87,17 @@ You can keep only FastGPS locations or only Argos locations by placing the follo
 ```{r,eval=FALSE}
 # locs <- locs %>% filter(type=="FastGPS")
 ```
+
 or
+
 ```{r, eval=FALSE}
 # locs <- locs %>% filter(type=="Argos")
 ```
 
 ### Convert location data to simple feature (sf) points
+
 Convert data to R spatial object
+
 ```{r}
 locs <- st_as_sf(locs, coords=c('longitude','latitude'), crs=4326)
 ```
@@ -117,12 +120,15 @@ meta_data <- read_csv(file.path(dir,"raw_data/Metadata.csv")) %>%
 ```
 
 Next, filter out all telemetry locations for animals *not* in the meta-data
+
 ```{r}
 locs <- filter(locs, deploy_id %in% meta_data$deploy_id)
 ```
 
 ### Remove locations prior to deployment date
+
 Remove locations within, say, 24 hours of deployment to eliminate possible capture effects on movement. In the code below, `24` can be changed to whatever number of hours is desired.
+
 ```{r}
 locs <- meta_data  %>% left_join(locs,.)
 locs <- filter(locs, datetime >= (deploy_date+hours(24)) )
@@ -195,25 +201,31 @@ locs <- locs %>% st_transform(prj)
 ```
 
 ### Obtain a land polygon for mapping
-(Optional) Here we'll use the `pic_maps` package to get a spatial polygon for the coastline. 
-You'll need to download the OSM data the first time you use it. So run the code below if this is the first time using the `picMaps` package. The `set_data_storage()` function will create a directory where the worldwide Open Street Maps (OSM) data will be downloaded. You can specify this directory to be wherever you want that has write permissions. The directory specified below is the default. 
+
+(Optional) Here we'll use the `pic_maps` package to get a spatial polygon for the coastline. You'll need to download the OSM data the first time you use it. So run the code below if this is the first time using the `picMaps` package. The `set_data_storage()` function will create a directory where the worldwide Open Street Maps (OSM) data will be downloaded. You can specify this directory to be wherever you want that has write permissions. The directory specified below is the default.
+
 ```{r, eval=FALSE}
 # set_data_storage(path = "~/.picmaps_data")
 # osm_download()
 ```
-To get a land polygon for our location data we create a bounding box and buffer it by 150km (150,000m), turn it in to a spatial object and `osm_coast` will obtain all land polygons that intersect that buffer. Setting `keep=0.5` in the `osm_coast()` will retain about 50% of the raw coastline data which reduces the resolution some. The land polygons will be of the same projection as the `locs` data. 
+
+To get a land polygon for our location data we create a bounding box and buffer it by 150km (150,000m), turn it in to a spatial object and `osm_coast` will obtain all land polygons that intersect that buffer. Setting `keep=0.5` in the `osm_coast()` will retain about 50% of the raw coastline data which reduces the resolution some. The land polygons will be of the same projection as the `locs` data.
+
 ```{r, output=FALSE}
 land <- locs %>% st_bbox() %>% st_as_sfc() %>% 
   st_buffer(150000) %>% osm_coast(union=TRUE, keep=0.5)
 ```
 
 Alternatively, if you have a specific .shp file you would like to use instead, the following code will read in the shape file.
+
 ```{r, eval=FALSE}
 # land <- read_sf("raw_data/marianas/marianas.shp")
 ```
 
 ### Create visibility graph for rerouting
+
 Here a visability graph is created for routing predicted or simulated track locations around land polygons
+
 ```{r}
 vis_graph <- pathroutr::prt_visgraph(land, centroids=TRUE)
 ```
@@ -225,3 +237,7 @@ dir.create("processed_data")
 save(locs, land, vis_graph, packages, file="processed_data/clean_data.RData")
 ```
 Otherwise, you can continue with step 2 without saving.
+
+## Continue data analysis
+
+Continue into step 2 directly. If R is closed prior to Step 2, Step 1 will need to be run again.
