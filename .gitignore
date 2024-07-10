@@ -5,3 +5,6 @@
 .DS_Store
 *.png
 *.RData
+ud_files
+plots
+*.csv
