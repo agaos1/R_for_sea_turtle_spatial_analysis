@@ -31,7 +31,7 @@ Currently, the only grouping variable for the location data `deploy_id`. In orde
 #| output: false
 locs_data <- unnest(locs_data, cols=data) %>% 
   group_by(
-    deploy_id, species, scl, general_location, site_location, release_location, sex
+    deploy_id, phase, species, scl, general_location, site_location, release_location, sex
   ) %>% nest()
 ```
 
@@ -53,7 +53,7 @@ dir.create("plots/individual_uds/hpd_ud_95", recursive=TRUE)
 
 Now we calculate individual UDs. This can also take a while, so we can do it in parallel
 ```{r}
-plan("multisession", workers=8)
+plan("multisession", workers=4)
 
 ud_out <- foreach(i=1:nrow(locs_sample), .options.future=list(seed=TRUE), .errorhandling="pass", .combine="rbind") %dofuture% {
   
