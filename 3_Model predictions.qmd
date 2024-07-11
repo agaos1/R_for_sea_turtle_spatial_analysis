@@ -24,6 +24,7 @@ locs <- locs %>% rowwise() %>% mutate(
 )
 ```
 
+
 Now we can fit a Brownian motion movement model to the data. 
 ```{r}
 constr <- list(
@@ -50,7 +51,7 @@ The model seams to have fit for all animals (all values of the previous output a
 ```{r, eval=FALSE}
 # locs$fit[[3]] <- cu_crw_argos(locs$data[[3]], bm=TRUE, constr=constr)
 ```
-Soetimes this works because there is a random process to get the starting values and sometimes bad values happen and if you refit it works better. 
+Sometimes this works because there is a random process to get the starting values and sometimes bad values happen and if you refit it works better. 
 
 [ARG: I'm not really clear on what the code above actually does to "refit"]{.underline}
 
@@ -64,9 +65,9 @@ locs_data <- locs %>% select(deploy_id, data)
 
 [ARG: not really sure what these steps do]{.underline}
 
-We will use the `future` and `doFuture` packages to make use of parallel computing on multiple processors if desired. Use the following code to set up parallel computing. If you don't want to use it, just skip it. The `workers` argument tells the code how many cores to use. You can use the package/function `parallel::detectCores()` if you want to find out how many are avaialble. 
+We will use the `future` and `doFuture` packages to make use of parallel computing on multiple processors if desired. Use the following code to set up parallel computing. If you don't want to use it, just skip it. The `workers` argument tells the code how many cores to use. You can use the package/function `parallel::detectCores()` if you want to find out how many are available. Can change the number of workers for each computer to ensure it doesn't overload.
 ```{r}
-plan("multisession", workers=8) # uncomment for parallel processing
+plan("multisession", workers=4) # uncomment for parallel processing
 ```
 
 Now we can make predictions using `%dofuture%` loops which are parallel. In the predict call we are also using the `pathroutr` package to route tracks around land. We accomplish this by making predictions at 1 hr intervals and the observations times, then routing the track around land. After that we extract the predicted locations at observation times. In the simulation draws we are just drawing locations at the observed times to account for location error in future analyses. 
@@ -134,7 +135,7 @@ for(i in 1:nrow(locs_pred)){
 Now we will begin to estimate individual UDs using the multiple imputation method to account for location error. See [Scharf et al. (2017)](https://link.springer.com/article/10.1007/s13253-017-0294-5). But first we will obtain the effective sample size of the data. The ESS estimates about how many independent locations are in the data after accounting for autocorrelation. This step can also be a little time consuming, so we also can run this in parallel
 ```{r}
 locs_ess <- locs %>% select(deploy_id)
-plan("multisession", workers=8)
+plan("multisession", workers=4)
 locs_ess$ess <- foreach(i=1:nrow(locs_ess), .combine = 'c') %dofuture% {
    cu_crw_ess(locs_fit$fit[[i]])
 }
