@@ -163,7 +163,6 @@ locs$keep <-locs %>%
 locs <- filter(locs, keep)
 ```
 
-[ARG: I moved the subsequent three sections (Header 3) so that rather than being subsequent to the data projection steps, they come before. Devin to confirm if feasible or if need to come after.]{.underline}
 
 ### Get number of locations per animal
 
