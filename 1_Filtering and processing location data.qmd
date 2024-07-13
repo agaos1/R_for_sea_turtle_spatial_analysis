@@ -8,21 +8,17 @@ editor_options:
 
 [ARG: Any underlined text in this document that start with ARG: represents notes to self on things that I need to further clarify and set up.]{.underline}
 
-[ARG: I added the load_libraries.R file]{.underline} [to the parent folder, but need Devin to confirm all the necessary packages are listed.]{.underline}
-
 # Folder and file preparation
 
 -   The default working directory for Quarto is the directory of the Quarto Rmd file, so if you are storing this Quarto Rmd file in a different folder than the working director, you'll need to tell Quarto. To do so, go to: `Tools -> Global Options -> R Markdown` and choose the option - Evaluate chunks in "Current" directory.
 
 -   At minimum the working directory must contain a folder titled as follows:
 
-1.  raw_data
+raw_data
 
 -   Within the raw_data folder there should be a folder titled "indiv_tags" that contains all the raw source files for the tags of interest (i.e., all the files downloaded from Wildlife Computers) as well as a CSV file titled "Metadata" containing the data for all the tags.
 
-2.  load_libraries.R
-
--   Should contain all the packages needed for any of the processing in this sea turtle spatial analysis R processing code.
+Also easier to have qmd files in the directory
 
 [ARG: We need to provide a header template for the Metadata file to ensure harmony with ongoing data processing steps.]{.underline}
 
@@ -163,7 +159,6 @@ locs$keep <-locs %>%
 locs <- filter(locs, keep)
 ```
 
-
 ### Get number of locations per animal
 
 ```{r}
@@ -180,7 +175,6 @@ anim_locs <- filter(anim_locs, num_locs>20)
 locs <- filter(locs, deploy_id %in% anim_locs$deploy_id)
 
 ```
-
 
 ### Project data for CTCRW modeling
 
@@ -224,11 +218,14 @@ vis_graph <- pathroutr::prt_visgraph(land, centroids=TRUE)
 ```
 
 ### Save output for continuing later
+
 If you would would like to pause here and continue working later you should save the products so you don't have to repeat these steps.
+
 ```{r}
 dir.create("processed_data")
 save(locs, land, vis_graph, packages, file="processed_data/clean_data.RData")
 ```
+
 Otherwise, you can continue with step 2 without saving.
 
 ## Continue data analysis
