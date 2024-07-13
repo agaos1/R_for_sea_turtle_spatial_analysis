@@ -26,8 +26,6 @@ locs <- locs %>% group_by(deploy_id) %>% nest()
 
 ### Create table of migration start and stop dates
 
-[ARG: clarify what adjusting the min_disp, phase_len, max_k (in code) does and if worth tweaking under certain scenarios.]{.underline}
-
 Now we can estimate migration start and stop dates, if there are any, in each deployment. The workhorse function for this is `cu_migration_det()`. The arguments used here are `min_disp`, the minimum distance that can be considered a migration displacement, `min_phase_len`, the minimum number of days a phase (stationary or migration) can be, and `max_k` is the degrees of freedom used for fitting the dispersion function. 
 
 ```{r}
