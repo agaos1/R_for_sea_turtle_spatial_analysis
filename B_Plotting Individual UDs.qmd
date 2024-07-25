@@ -1,40 +1,31 @@
 ---
 title: "B_Plotting individual UDs"
-format: pdf
-editor: visual
+format: html
+editor: source
 editor_options: 
   chunk_output_type: console
 ---
 
 [ARG: Devin developed the code for Group UDs prior to the code for individual UD, thus the latter actually depends on steps in the former. We don't want this...we want to be able to calculate individual UDs (hence why I have made this step 4 here) and the user can calculate group UDs if they want (using step 5).]{.underline}
 
-### Set your working directory
+### Read in saved data and load packages
+If you previously stopped after step 2 and want to restart, you have to read in the saved data and load all the packages.
 
 ```{r}
-setwd("~/Desktop/R_for_sea_turtle_spatial_analysis")
+#| output: false
+load("processed_data/ud_df.RData")
+packages <- read.csv("packages.csv")$packages
+invisible(lapply(packages, library, character.only = TRUE))
 ```
 
-### Load the packages
+Read in the metadata again. If you want you could just save from the beginning.
 
 ```{r}
-source("R/load_libraries.R")
-```
+#| output: false
+meta_data <- read_csv("raw_data/Metadata.csv") %>% 
+  clean_names() %>% rename(deploy_id = ptt_unique_id)
 
-### Load data if not already in the workspace
-
-Adjust the names of the files in below chunk based on what was created/saved in previous steps
-
-```{r}
-load("processed_data/predict_samples_NavyMarianas.RData")
-load("processed_data/ud_df_NavyMarianas.RData")
-
-meta_data <- read_csv("raw_data/Metadata_PACFLEET_NBG.csv",show_col_types = FALSE) %>% 
-  clean_names() %>% filter(project=="PACFLEET_NavyMarianas") %>% 
-  rename(deploy_id = ptt_unique_id) %>% 
-  mutate(
-    deploy_date = mdy(deploy_date)
-  ) %>% 
-  dplyr::select(-pi_ttag_left)
+meta_data <- meta_data %>% filter(deploy_id %in% ud_df$deploy_id)
 
 ud_data <- select(ud_df, deploy_id, data, ess, area95, area50, ud_full, ud_95, ud_50)
 ud_data <- left_join(ud_df, meta_data)
@@ -51,26 +42,26 @@ capt_loc <- meta_data %>% select(deploy_id, capture_longitude, capture_latitude)
 capt_loc <- st_transform(capt_loc, st_crs(land))
 ```
 
-```{r}
-locs <- select(locs, deploy_id, data, pred, sample, ess)
-locs <- left_join(locs, meta_data)
-```
 
 ### Create output folder
 
 Adjust names of files as necessary
 
 ```{r}
-if(!dir.exists("plots/group_uds_NavyMarianas/singles")){dir.create("plots/group_uds_NavyMarianas/singles")}
+if(!dir.exists("plots/individual_uds/joint")){dir.create("plots/individual_uds/joint")}
 
 ```
 
-### Function to find HPD of UD
-
-[ARG: I'm not really sure what this step does or why it brings in a tile raster]{.underline}
+### Get Bathymetry maps for plotting 
 
 ```{r}
+library(rosm)
 locs_bbox <- st_expand(st_bbox(land), 0.2) %>% st_as_sfc()
+esri_ocean <- source_from_url_format(
+  url_format = paste0('https://services.arcgisonline.com/arcgis/rest/services/',
+                      'Ocean/World_Ocean_Base/MapServer/tile/${z}/${y}/${x}.jpeg'),
+  attribution = "")
+
 esri_tiles <- osm.raster(sf::as_Spatial(locs_bbox),
                          type = esri_ocean, zoomin = 2,
                          progress = "none", crop = FALSE)
@@ -80,7 +71,7 @@ terra::crs(esri_tiles) <- "EPSG:6637"
 
 ### Indicate tag(s) to be processed for UDs
 
-Can calculate UDs for all tags in a data set or for individuals tags
+Can calculate UDs for all tags in a data set or for individuals tags. If you want to plot a specific PTT, just use that number for the `PTT <- ...` in the loop below and don't run the whole loop just the code within the loop.   
 
 [To calculate the UDs of all tags in a data set AT ONCE, use the code in this chunk (skip to next chunk for individual tags):]{.underline}
 
@@ -88,20 +79,13 @@ Can calculate UDs for all tags in a data set or for individuals tags
 for(i in 1:nrow(ud_data)){
   
   PTT <- ud_data$deploy_id[[i]]
-  
   ud_single_df <- ud_data %>% filter(deploy_id==PTT)
-  
-  locs_single <- locs %>% filter(deploy_id==PTT)
-  
   ud <- readRDS(paste0("ud_files/ud_full/",PTT,".rds"))
   ud_cont <- cu_ud_contour(ud, c(0.95,0.5))
   ud_cont_poly <- ud_cont %>% st_cast("POLYGON")
-  
   ## Capture locs
   capt_pts <- capt_loc %>% filter(deploy_id==PTT)
-  
-  pts <- st_geometry(locs_single$data[[1]])
-  
+  pts <- st_as_sf(ud_single_df$data[[1]][,"geometry"])
   # Plots
   bbb <- st_buffer(ud_cont[1,], 1500) |> st_bbox() |> st_as_sfc()
   
@@ -111,7 +95,7 @@ for(i in 1:nrow(ud_data)){
   ### https://colorbrewer2.org/ for the PTT color palette
   ###
   ppp <- ggplot() +
-    annotation_spatial(esri_tiles) + 
+    annotation_spatial(esri_tiles) +
     layer_spatial(bbb, fill=NA, size=0, color=NA) +
     annotation_spatial(pts, size=0.25, alpha=0.5, color="black") + 
     layer_spatial(ud_cont_poly[1,], color="royalblue", lwd=0.25, fill="royalblue", alpha=0.3) +      # 95% quantile polygon
@@ -123,53 +107,7 @@ for(i in 1:nrow(ud_data)){
                        axis.ticks=element_blank(), axis.text=element_blank()) +
     annotation_scale()
   
-  ggsave(ppp, file=paste0("plots/group_uds_NavyMarianas/singles/", PTT,"_contour.png"), width=6.5, height=4)
+  ggsave(ppp, file=paste0("plots/individual_uds/joint/", PTT,"_contour.png"), width=6.5, height=4)
 }
 ```
 
-[For the UDs of INDIVIDUAL TAGS IN A DATASET, use the code in this chunk:]{.underline}
-
-```{r}
-PTT <- 85491 #Change this PTT to the turtle/tag of interest
-  
-plot_dir <- paste0("plots/group_uds_NavyMarianas/singles/", PTT, "/")
-dir.create(plot_dir)
-
-ud_single_df <- ud_data %>% filter(deploy_id==PTT)
-
-locs_single <- locs %>% filter(deploy_id==PTT)
-
-ud <- readRDS(paste0("ud_files/ud_full/",PTT,".rds"))
-ud_cont <- cu_ud_contour(ud, c(0.95,0.5))
-ud_cont_poly <- ud_cont %>% st_cast("POLYGON")
-
-pts <- st_geometry(locs_single$data[[1]])
-
-# Plots
-bbb <- st_buffer(ud_cont[1,], 1500) |> st_bbox() |> st_as_sfc()
-
-###
-### See http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf
-### if you want to change homerange colors and 
-### https://colorbrewer2.org/ for the PTT color palette
-###
-ppp <- ggplot() +
-  annotation_spatial(esri_tiles) + 
-  # layer_spatial(ud95, aes(fill=ud), size=0, color=NA) +
-  layer_spatial(bbb, fill=NA, size=0, color=NA) +
-  annotation_spatial(pts, size=0.25, alpha=0.5, color="black") + 
-  layer_spatial(ud_cont_poly[1,], color="royalblue", lwd=0.25, fill="royalblue", alpha=0.3) +      # 95% quantile polygon
-  layer_spatial(ud_cont_poly[2,], color="firebrick2", lwd=0.25, fill="firebrick2", alpha=0.3) +    # 50% quantile polygon
-  annotation_spatial(land, fill = "gray50", size = 0) + # land
-  # scale_y_continuous(breaks=seq(-180,180,5)) +
-  # scale_x_continuous(breaks=seq(-180,180,10)) +
-  # # scale_fill_distiller(name= "UD", palette = "Reds", direction = 1) +
-  theme_bw() + theme(panel.grid.major = element_blank(), 
-                     panel.grid.minor = element_blank(),
-                     axis.ticks=element_blank(), axis.text=element_blank()) +
-  # theme(legend.position = "bottom") +
-  annotation_scale()
-
-ggsave(ppp, file=paste0(plot_dir, PTT,"_contour.png"), width=6.5, height=4)
-
-```

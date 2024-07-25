@@ -14,6 +14,7 @@ If you previously stopped after step 2 and want to restart, you have to read in 
 ```{r}
 #| output: false
 load("processed_data/clean_data.RData")
+packages <- read.csv("packages.csv")$packages
 invisible(lapply(packages, library, character.only = TRUE))
 ```
 
@@ -92,6 +93,6 @@ locs <- locs %>% rowwise() %>% mutate(
 ### Save output for continuing later
 If you would would like to pause here and continue working later you should save the products so you don't have to repeat these steps.
 ```{r}
-save(locs, land, vis_graph, packages, file="processed_data/migr_det_data.RData")
+save(locs, land, vis_graph, file="processed_data/migr_det_data.RData")
 ```
 Otherwise, you can continue with step 2 without saving.

@@ -9,3 +9,5 @@ ud_files
 plots
 *.csv
 processed_data
+rosm.cache
+*_files

@@ -1,13 +1,22 @@
 ---
 title: "A_Visualizing tracks"
-format: pdf
-editor: visual
+format: html
+editor: source
 editor_options: 
   chunk_output_type: console
 ---
 
 [This code chunk was taken from the Drifter processing step, but missing initial (i.e., data import) and end (i.e., saving) steps. This data needs to be adapted for visualizing tracks]{.underline}
 
+### Load data and packages
+
+```{r}
+load("processed_data/predict_samples.RData")
+invisible(lapply(packages, library, character.only = TRUE))
+```
+
+
+### Some function for plotting
 ```{r}
 pred_to_track <- function(x){
   x %>% st_geometry %>% st_combine %>% st_cast("LINESTRING")
@@ -16,8 +25,11 @@ pred_to_disp <- function(x){
   x <- x[c(1,nrow(x)),]
   x %>% st_geometry %>% st_combine %>% st_cast("LINESTRING")
 }
+```
 
+### Plotting
 
+```{r}
 tracklines <- dlocs %>% select(deploy_id, pred) %>% group_by(deploy_id) %>%
   mutate(
     track = map(pred, pred_to_track) %>% do.call(c,.),

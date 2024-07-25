@@ -12,6 +12,7 @@ If you previously stopped after step 2 and want to restart, you have to read in 
 ```{r}
 #| output: false
 load("processed_data/migr_det_data.RData")
+packages <- read.csv("packages.csv")$packages
 invisible(lapply(packages, library, character.only = TRUE))
 ```
 
@@ -145,6 +146,6 @@ plan("sequential")
 ## Save results
 Now we can save the results for step 4, estimating UDs, etc. 
 ```{r}
-save(locs_data, locs_pred, locs_sample, locs_ess, locs_fit, land, vis_graph, packages, file="processed_data/predict_samples.RData")
+save(locs_data, locs_pred, locs_sample, locs_ess, locs_fit, land, vis_graph, file="processed_data/predict_samples.RData")
 ```
 
