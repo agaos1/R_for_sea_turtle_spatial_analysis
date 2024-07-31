@@ -10,8 +10,6 @@ editor_options:
 
 # Folder and file preparation
 
--   The default working directory for Quarto is the directory of the Quarto Rmd file, so if you are storing this Quarto Rmd file in a different folder than the working director, you'll need to tell Quarto. To do so, go to: `Tools -> Global Options -> R Markdown` and choose the option - Evaluate chunks in "Current" directory.
-
 -   At minimum the working directory must contain a folder titled as follows:
 
 raw_data
