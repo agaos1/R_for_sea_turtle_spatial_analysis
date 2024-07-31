@@ -103,7 +103,7 @@ If your metadata has multiple projects (in the "Project" column, you can assign 
 meta_data <- read_csv("raw_data/Metadata.csv") %>% 
   clean_names() %>% 
   #indicate project here or eliminate this line
-  filter(project=="NAVFAC_NavyBaseGuam") %>% 
+  #filter(project=="NAVFAC_NavyBaseGuam") %>% 
   rename(deploy_id = ptt_unique_id) %>% 
   mutate(deploy_date = mdy(deploy_date))
 ```
