@@ -1,0 +1,15 @@
+packages
+tidyverse
+mapview
+ggspatial
+trip
+crsuggest
+units
+plotly
+sf
+janitor
+lubridate
+crsuggest
+doFuture
+picMaps
+crawlUtils

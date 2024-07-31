@@ -23,6 +23,9 @@ Adjust the names of the files in below chunk based on what was created/saved in 
 ```{r}
 #| output: false
 load("processed_data/ud_df.RData")
+ud_df <- ud_df %>% select(-data)
+
+load("processed_data/predict_samples.RData")
 
 meta_data <- read_csv("raw_data/Metadata.csv",show_col_types = FALSE) %>% 
   clean_names() %>% 
@@ -33,8 +36,7 @@ meta_data <- read_csv("raw_data/Metadata.csv",show_col_types = FALSE) %>%
 
 meta_data <- meta_data %>% filter(deploy_id %in% ud_df$deploy_id)
 
-ud_data <- select(ud_df, deploy_id, data, ess, area95, area50, ud_full, ud_95, ud_50)
-ud_data <- left_join(ud_df, meta_data)
+ud_data <- select(ud_df, deploy_id, ess, area95, area50, ud_full, ud_95, ud_50)
 ```
 
 ### Capture location spatial points
@@ -48,8 +50,8 @@ capt_loc <- st_transform(capt_loc, st_crs(land))
 ### Define Species tag groups
 
 ```{r}
-ud_data$tag_type <- str_replace(ud_data$tag_brand_type, " Wildlife Computers", "")
-ud_data$spp_tag <- paste(ud_data$species, ud_data$tag_type, sep = " / ") 
+meta_data$tag_type <- str_replace(meta_data$tag_brand_type, " Wildlife Computers", "")
+meta_data$spp_tag <- paste(meta_data$species, meta_data$tag_type, sep = " / ") 
 ```
 
 ### Get Bathymetry rasters for plotting
@@ -95,25 +97,28 @@ dir.create(paste0(file_dir, "ud_50"))
 
 ### Splitting by species (and by tag type if desired)
 
-If you want to separate UDs by species only (Not by tag type, i.e., SPLASH vs SPOT), you would use the following code:
+If you want to separate UDs by species only (Not by tag type, i.e., SPLASH vs SPOT), you would use the following code `ud_group_df <- ud_data %>% group_by(.data[[GROUP_VAR]], species) %>% ...` but here we will group by `"general_location"`, species and tag type with the following code. You can also adjust the grouping to whatever you would like for the maps. 
 
 ```{r}
-ud_group_df <- ud_data %>% group_by(.data[[GROUP_VAR]], species) %>% nest() %>% 
-  arrange( species, .data[[GROUP_VAR]]) %>% 
-  mutate(area95 = NA, area50 = NA, ud_full=NA, ud_95=NA, ud_50=NA) 
-locs_group <- locs %>% group_by(.data[[GROUP_VAR]], species) %>% nest() %>% 
-  arrange( species, .data[[GROUP_VAR]])
-```
-
-If you want to separate UDs by species AND tag type (i.e., SPLASH vs SPOT), you would use the following code:
-
-```{r}
-ud_group_df <- ud_data %>% group_by(.data[[GROUP_VAR]], species, tag_type) %>% nest() %>% 
+ud_group_df <- meta_data %>% group_by(.data[[GROUP_VAR]], species, tag_type) %>% nest() %>% 
  arrange( species, tag_type, .data[[GROUP_VAR]]) %>% 
  mutate(area95 = NA, area50 = NA, ud_full=NA, ud_95=NA, ud_50=NA) 
- locs_group <- locs %>% group_by(.data[[GROUP_VAR]], species, tag_type) %>% nest() %>% 
+
+ locs_group <- ud_data %>% select(deploy_id, .data[[GROUP_VAR]], species, tag_type, data) %>% group_by(.data[[GROUP_VAR]], species, tag_type) %>% nest() %>% 
  arrange( species, tag_type, .data[[GROUP_VAR]])
 ```
+
+
+### Helper function to calculate area
+
+This function will calculate the area of a homerange estimate
+```{r}
+ud_area <- function(x){
+  x |> st_geometry() |> st_union() |> st_area() |> set_units("km^2")
+}
+```
+
+
 
 ### Loop over by groups
 
@@ -122,11 +127,12 @@ with_progress({ # Takes a while, so adding progress bar
   G <- nrow(ud_group_df)
   p <- progressor(G)
   for(g in 1:G){
-    grp_lvl <-  paste(as.vector(ungroup(locs_group[g,1:(ncol(locs_group)-1)])), collapse="_") %>% 
+    grp_lvl <-  paste(as.vector(ungroup(select(ud_group_df, -data, -area95, -area50, -ud_full, -ud_95, -ud_50)[g,])[1,]), collapse="_") %>% 
       gsub("\\/", "-", .)
-    g_locs <- locs_group[g,]$data[[1]]$sample
+    g_id <- ud_group_df$data[[g]]$deploy_id
+    g_locs <- locs_sample %>% filter(deploy_id %in% g_id) %>% pull(sample)
     N <- length(g_locs)
-    ud_95_files <- ud_group_df[g,]$data[[1]]$ud_95
+    ud_95_files <- ud_df %>% filter(deploy_id %in% g_id) %>% pull(ud_95)
     ud_lst <- foreach(i=1:N)%do%{
       readRDS(ud_95_files[[i]]) %>% st_geometry %>% st_union
     }
