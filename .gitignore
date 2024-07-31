@@ -11,3 +11,4 @@ processed_data
 rosm.cache
 *_files
 rm_indiv_tags
+indiv_tags
