@@ -10,16 +10,13 @@ editor_options:
 
 [We need to edit this code so that we can easily create maps for anywhere (for use in making figures)]{.underline}
 
-### Set your working directory
+### Read in saved data and load packages
+If you previously stopped after step 3 and want to restart, you have to read in the saved data and load all the packages.
 
 ```{r}
-setwd("~/Desktop/R_for_sea_turtle_spatial_analysis")
-```
-
-### Load the libraries
-
-```{r}
-source("R/load_libraries.R")
+load("processed_data/predict_samples.RData")
+packages <- read.csv("packages.csv")$packages
+invisible(lapply(packages, library, character.only = TRUE))
 ```
 
 ### Load data if not already in the workspace
@@ -34,6 +31,11 @@ load("processed_data/predict_samples_NavyMarianas.RData")
 
 ```{r}
 locs_bbox <- st_expand(st_bbox(land), 0.2) %>% st_as_sfc()
+esri_ocean <- source_from_url_format(
+  url_format = paste0('https://services.arcgisonline.com/arcgis/rest/services/',
+                      'Ocean/World_Ocean_Base/MapServer/tile/${z}/${y}/${x}.jpeg'),
+  attribution = "")
+
 esri_tiles <- osm.raster(sf::as_Spatial(locs_bbox),
                          type = esri_ocean, zoomin = 2,
                          progress = "none", crop = FALSE)
@@ -54,10 +56,10 @@ mapview(land)
 
 Can adjust by changing the polygon numbers in the first line
 
-This code creates a map for GUAM:
+This code creates a map for Rota:
 
 ```{r}
-rota<- st_geometry(land[28,])
+rota <- st_geometry(land[43,]) %>% st_buffer(20000) %>% st_intersection(land)
 bbb <- st_bbox(rota) %>% st_as_sfc() %>% st_buffer(5000) # add a little buffer 5km
 ppp <- ggplot() +
   annotation_spatial(esri_tiles) +
@@ -73,7 +75,7 @@ This code is for Tinian and Saipan:
 
 ```{r}
 ## Tinian/Saipan
-tinian_saipan <- st_geometry(land[c(2,5, 19, 1, 23, 18, 22, 24, 21),])
+tinian_saipan <- st_geometry(land[c(48,54),])  %>% st_buffer(20000) %>% st_intersection(land)
 bbb <- st_bbox(tinian_saipan) %>% st_as_sfc() %>% st_buffer(5000) # add a little buffer 5km
 ppp <- ggplot() +
   annotation_spatial(esri_tiles) +
@@ -84,3 +86,20 @@ ppp <- ggplot() +
 ggsave(ppp, file=paste0("plots/tinian_saipan.png"), width=6, height=6.5, dpi="retina")
 
 ```
+
+This code is for Guam:
+
+```{r}
+## Guam
+guam <- st_geometry(land[41,]) %>% st_buffer(20000) %>% st_intersection(land)
+bbb <- st_bbox(guam) %>% st_as_sfc() %>% st_buffer(5000) # add a little buffer 5km
+ppp <- ggplot() +
+  annotation_spatial(esri_tiles) +
+  layer_spatial(guam, fill = "gray50", size = 0) +
+  layer_spatial(bbb, fill=NA, size=0, color=NA) +
+  annotation_scale() +
+  theme_bw() 
+ggsave(ppp, file=paste0("plots/tinian_saipan.png"), width=6, height=6.5, dpi="retina")
+
+```
+
