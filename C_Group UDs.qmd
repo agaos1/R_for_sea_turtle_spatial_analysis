@@ -1,21 +1,19 @@
 ---
 title: "C_Plotting group UDs"
-format: pdf
-editor: visual
+format: html
+editor: source
 editor_options: 
   chunk_output_type: console
 ---
 
-### Set your working directory
-
-```{r}
-setwd("~/Desktop/R_for_sea_turtle_spatial_analysis")
-```
 
 ### Load the packages
 
 ```{r}
-source("R/load_libraries.R")
+#| output: false
+load("processed_data/ud_df.RData")
+packages <- read.csv("packages.csv")$packages
+invisible(lapply(packages, library, character.only = TRUE))
 ```
 
 ### Load data if not already in the workspace
@@ -23,16 +21,17 @@ source("R/load_libraries.R")
 Adjust the names of the files in below chunk based on what was created/saved in previous steps
 
 ```{r}
-load("processed_data/predict_samples_NAVFAC_NavyBaseGuam.RData")
-load("processed_data/ud_df_NAVFAC_NavyBaseGuam.RData")
+#| output: false
+load("processed_data/ud_df.RData")
 
-meta_data <- read_csv("raw_data/Metadata_PACFLEET_NBG.csv",show_col_types = FALSE) %>% 
-  clean_names() %>% filter(project=="NAVFAC_NavyBaseGuam ") %>%
+meta_data <- read_csv("raw_data/Metadata.csv",show_col_types = FALSE) %>% 
+  clean_names() %>% 
   rename(deploy_id = ptt_unique_id) %>% 
   mutate(
     deploy_date = mdy(deploy_date)
-    ) %>% 
-  dplyr::select(-pi_ttag_left)
+    )
+
+meta_data <- meta_data %>% filter(deploy_id %in% ud_df$deploy_id)
 
 ud_data <- select(ud_df, deploy_id, data, ess, area95, area50, ud_full, ud_95, ud_50)
 ud_data <- left_join(ud_df, meta_data)
