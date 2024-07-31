@@ -43,28 +43,25 @@ ud_data <- left_join(ud_df, meta_data)
 capt_loc <- meta_data %>% select(deploy_id, capture_longitude, capture_latitude) %>% 
   st_as_sf(coords = c("capture_longitude","capture_latitude"), crs=4326)
 capt_loc <- st_transform(capt_loc, st_crs(land))
-
-
-locs <- select(locs, deploy_id, data, pred, sample, ess)
-locs <- left_join(locs, meta_data)
 ```
 
 ### Define Species tag groups
 
 ```{r}
 ud_data$tag_type <- str_replace(ud_data$tag_brand_type, " Wildlife Computers", "")
-locs$tag_type <- str_replace(locs$tag_brand_type, " Wildlife Computers", "")
-
 ud_data$spp_tag <- paste(ud_data$species, ud_data$tag_type, sep = " / ") 
-locs$spp_tag <- paste(locs$species, locs$tag_type, sep = " / ") 
 ```
 
-### Function to find HPD of UD
-
-[ARG: I'm not really sure what this step does or why it brings in a tile raster]{.underline}
+### Get Bathymetry rasters for plotting
 
 ```{r}
+library(rosm)
 locs_bbox <- st_expand(st_bbox(land), 0.2) %>% st_as_sfc()
+esri_ocean <- source_from_url_format(
+  url_format = paste0('https://services.arcgisonline.com/arcgis/rest/services/',
+                      'Ocean/World_Ocean_Base/MapServer/tile/${z}/${y}/${x}.jpeg'),
+  attribution = "")
+
 esri_tiles <- osm.raster(sf::as_Spatial(locs_bbox),
                          type = esri_ocean, zoomin = 2,
                          progress = "none", crop = FALSE)
@@ -75,23 +72,22 @@ terra::crs(esri_tiles) <- "EPSG:6637"
 ### Create directory for group UDs
 
 ```{r}
-if(!dir.exists("group_ud_files_NavyMarianas")){dir.create("group_ud_files_NavyMarianas")}
-if(!dir.exists("plots/group_uds_NavyMarianas")){dir.create("plots/group_uds_NavyMarianas")}
+if(!dir.exists("plots/group_uds")){dir.create("plots/group_uds")}
 
 ```
 
 ## Group specific code starts here:
 
-Define a group here. To change group variable, replace 'general_location' with desired grouping variable
+Define a group here. To change group variable, replace `"general_location"` with desired grouping variable
 
 ```{r}
 GROUP_VAR <- "general_location"
 
-plot_dir <- paste0("plots/group_uds_NavyMarianas/", GROUP_VAR, "/")
+plot_dir <- paste0("plots/group_uds/", GROUP_VAR, "/")
 dir.create(plot_dir)
 
-file_dir <- paste0("group_ud_files_NavyMarianas/", GROUP_VAR, "/")
-dir.create(file_dir)
+file_dir <- paste0("group_ud_files/", GROUP_VAR, "/")
+dir.create(file_dir, recursive=TRUE)
 dir.create(paste0(file_dir, "ud_full"))
 dir.create(paste0(file_dir, "ud_95"))
 dir.create(paste0(file_dir, "ud_50"))
