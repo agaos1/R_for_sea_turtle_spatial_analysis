@@ -14,6 +14,9 @@ editor_options:
 load("processed_data/ud_df.RData")
 packages <- read.csv("packages.csv")$packages
 invisible(lapply(packages, library, character.only = TRUE))
+library(rosm)
+library(RColorBrewer)
+library(progressr)
 ```
 
 ### Load data if not already in the workspace
@@ -104,8 +107,6 @@ ud_group_df <- meta_data %>% group_by(.data[[GROUP_VAR]], species, tag_type) %>%
  arrange( species, tag_type, .data[[GROUP_VAR]]) %>% 
  mutate(area95 = NA, area50 = NA, ud_full=NA, ud_95=NA, ud_50=NA) 
 
- locs_group <- ud_data %>% select(deploy_id, .data[[GROUP_VAR]], species, tag_type, data) %>% group_by(.data[[GROUP_VAR]], species, tag_type) %>% nest() %>% 
- arrange( species, tag_type, .data[[GROUP_VAR]])
 ```
 
 
@@ -179,12 +180,10 @@ with_progress({ # Takes a while, so adding progress bar
     ud_group_df$ud_50[g] <- paste0(file_dir,"ud_50/",grp_lvl,".rds")
     saveRDS(ud50, file=ud_group_df$ud_50[g])
     
-    pts <- locs_group$data[[g]]$data %>% do.call(bind_rows,.) %>% 
-      select(ptt) %>% mutate(ptt = factor(ptt))
-    n_anim <- nrow(locs_group$data[[g]])
+    pts <- locs_data %>% filter(deploy_id %in% g_id) %>% unnest(cols=data) %>% st_as_sf() %>% mutate(deploy_id=factor(deploy_id))
     
     ## Capture locs - Gaos: grey these out and the capt line furhter down to eliminate capture locations
-    capt_pts <- capt_loc %>% filter(deploy_id %in% locs_group$data[[g]]$deploy_id)
+    capt_pts <- capt_loc %>% filter(deploy_id %in% g_id)
     capt_pts$deploy_id <- factor(capt_pts$deploy_id)
     
     # Plots
@@ -196,7 +195,7 @@ with_progress({ # Takes a while, so adding progress bar
     ### https://colorbrewer2.org/ for the PTT color palette
     ###
     
-    #ptt_palatte <- colorRampPalette(brewer.pal(8, "Set2")) # original palette for any number of animals
+    # ptt_palatte <- colorRampPalette(brewer.pal(8, "Set2")) # original palette for any number of animals
     #ptt_palatte <- colorRampPalette(gray(c(0.2,0.8))) # a gray scale palette
     
     ppp <- ggplot() +
@@ -209,7 +208,7 @@ with_progress({ # Takes a while, so adding progress bar
   # all black. Grey out palatte lines above, as well as annotation line above, and use this: 
   annotation_spatial(pts, color = "black", size=0.25, alpha=0.05) + 
       
-      scale_color_manual(values=ptt_palatte(n_anim)) +                # ptt colors
+      # scale_color_manual(values=ptt_palatte(N)) +                # ptt colors
       guides(color = guide_legend(override.aes = list(size = 2))) +
       labs(color = "PTT") + 
       # layer_spatial(ud_cont[1,], color="royalblue4", lwd=0.75) +      # 95% quantile
@@ -233,11 +232,11 @@ with_progress({ # Takes a while, so adding progress bar
 ### Save output
 
 ```{r}
-save(ud_group_df, land, file="processed_data/ud_group_df_NavyMarianas.RData")
+save(ud_group_df, land, file=paste0(file_dir, "ud_group_df_", GROUP_VAR, ".RData"))
 ```
 
 ### Write out ud_group_df as a csv so it will give all the UD area info
 
 ```{r}
-ud_group_df %>% select(-data) %>% write_csv("processed_data/ud_group_df_nodata.csv")
+ud_group_df %>% select(-data) %>% write_csv(paste0(file_dir, "ud_group_df_", GROUP_VAR, ".csv"))
 ```
