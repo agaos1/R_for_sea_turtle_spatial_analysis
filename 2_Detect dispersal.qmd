@@ -93,7 +93,6 @@ locs$dispersal_plt[[18]] <- cu_plot_disp(locs$data[[18]], locs$migr_tbl[[18]]) +
 locs$dispersal_plt[[18]]
 ```
 
-
 GAOS: Want to incorporate all points into a foraging phase for 176769 (14). I did this, but should we eliminate phase 0 completely? 
 ```{r}
 locs$dispersal_plt[[14]] %>% ggplotly() #Change the turtle number as needed
