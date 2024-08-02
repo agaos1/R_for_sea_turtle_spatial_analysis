@@ -35,7 +35,7 @@ meta_data <- read_csv("raw_data/Metadata.csv",show_col_types = FALSE) %>%
   rename(deploy_id = ptt_unique_id) %>% 
   mutate(
     deploy_date = mdy(deploy_date)
-    )
+  )
 
 meta_data <- meta_data %>% filter(deploy_id %in% ud_df$deploy_id)
 
@@ -104,8 +104,8 @@ If you want to separate UDs by species only (Not by tag type, i.e., SPLASH vs SP
 
 ```{r}
 ud_group_df <- meta_data %>% group_by(.data[[GROUP_VAR]], species, tag_type) %>% nest() %>% 
- arrange( species, tag_type, .data[[GROUP_VAR]]) %>% 
- mutate(area95 = NA, area50 = NA, ud_full=NA, ud_95=NA, ud_50=NA) 
+  arrange( species, tag_type, .data[[GROUP_VAR]]) %>% 
+  mutate(area95 = NA, area50 = NA, ud_full=NA, ud_95=NA, ud_50=NA) 
 
 ```
 
@@ -124,109 +124,106 @@ ud_area <- function(x){
 ### Loop over by groups
 
 ```{r}
-with_progress({ # Takes a while, so adding progress bar
-  G <- nrow(ud_group_df)
-  p <- progressor(G)
-  for(g in 1:G){
-    grp_lvl <-  paste(as.vector(ungroup(select(ud_group_df, -data, -area95, -area50, -ud_full, -ud_95, -ud_50)[g,])[1,]), collapse="_") %>% 
-      gsub("\\/", "-", .)
-    g_id <- ud_group_df$data[[g]]$deploy_id
-    g_locs <- locs_sample %>% filter(deploy_id %in% g_id) %>% pull(sample)
-    N <- length(g_locs)
-    ud_95_files <- ud_df %>% filter(deploy_id %in% g_id) %>% pull(ud_95)
-    ud_lst <- foreach(i=1:N)%do%{
-      readRDS(ud_95_files[[i]]) %>% st_geometry %>% st_union
+G <- nrow(ud_group_df)
+for(g in 1:G){
+  grp_lvl <-  paste(as.vector(ungroup(select(ud_group_df, -data, -area95, -area50, -ud_full, -ud_95, -ud_50)[g,])[1,]), collapse="_") %>% 
+    gsub("\\/", "-", .)
+  g_id <- ud_group_df$data[[g]]$deploy_id
+  g_locs <- locs_sample %>% filter(deploy_id %in% g_id) %>% pull(sample)
+  N <- length(g_locs)
+  ud_95_files <- ud_df %>% filter(deploy_id %in% g_id) %>% pull(ud_95)
+  ud_lst <- foreach(i=1:N)%do%{
+    readRDS(ud_95_files[[i]]) %>% st_geometry %>% st_union
+  }
+  bb <- lapply(g_locs, st_bbox_list) %>% lapply(st_as_sfc) %>% st_bbox_list %>% 
+    st_as_sfc %>% st_buffer(20000) 
+  grd1 <- cu_ud_grid(bb, n=c(15,15))
+  ud1 <- foreach(i=1:N)%do%{
+    tmp <- cu_empirical_ud(g_locs[[i]], grid=grd1)
+    tmp$ud <- tmp$mean_pts/sum(tmp$mean_pts)
+    attr(tmp, "is_ud") <- TRUE
+    tmp2 <- cu_hud(tmp, 0.95)
+    if(nrow(tmp2)==0){
+      tmp <- tmp[tmp$ud!=0, ]
+    } else{
+      tmp <- tmp2
     }
-    bb <- lapply(g_locs, st_bbox_list) %>% lapply(st_as_sfc) %>% st_bbox_list %>% 
-      st_as_sfc %>% st_buffer(20000) 
-    grd1 <- cu_ud_grid(bb, n=c(15,15))
-    ud1 <- foreach(i=1:N)%do%{
-      tmp <- cu_empirical_ud(g_locs[[i]], grid=grd1)
-      tmp$ud <- tmp$mean_pts/sum(tmp$mean_pts)
-      attr(tmp, "is_ud") <- TRUE
-      tmp2 <- cu_hud(tmp, 0.95)
-      if(nrow(tmp2)==0){
-        tmp <- tmp[tmp$ud!=0, ]
-      } else{
-        tmp <- tmp2
-      }
-      tmp
-    }
-    
-    grd2 <- st_bbox_list(ud1) %>% st_as_sfc %>% st_buffer(2000) %>% 
-      cu_ud_grid(barrier=land, cellsize=100)
-    
-    # plan("multisession", workers=7) # uncomment for parallel processing
-    ud2 <- foreach(j=1:N, .packages=c("sf","dplyr")) %do% {
-      cu_kde_ud_sample(g_locs[[j]][1:8], grd2)
-    }
-    
-    ud <- cu_avg_ud(ud2, w="ess")
-    ud_cont <- cu_ud_contour(ud, c(0.95,0.5))
-    ud_cont_poly <- ud_cont %>% st_cast("POLYGON")
-    # ud %>% cu_hud() %>% mapview(zcol='ud')
-    
-    # Save UD data and create 95% and 50% UD quantiles
-    ud_group_df$ud_full[g] <- paste0(file_dir,"ud_full/",grp_lvl,".rds")
-    saveRDS(ud, file=ud_group_df$ud_full[g])
-    
-    ud95 <- cu_hud(ud, 0.95)
-    ud_group_df$area95[[g]] <- ud_area(ud95)
-    ud_group_df$ud_95[g] <- paste0(file_dir,"ud_95/",grp_lvl,".rds")
-    saveRDS(ud95, file=ud_group_df$ud_95[g])
-    
-    ud50 <- cu_hud(ud, 0.50)
-    ud_group_df$area50[[g]] <- ud_area(ud50)
-    ud_group_df$ud_50[g] <- paste0(file_dir,"ud_50/",grp_lvl,".rds")
-    saveRDS(ud50, file=ud_group_df$ud_50[g])
-    
-    pts <- locs_data %>% filter(deploy_id %in% g_id) %>% unnest(cols=data) %>% st_as_sf() %>% mutate(deploy_id=factor(deploy_id))
-    
-    ## Capture locs - Gaos: grey these out and the capt line furhter down to eliminate capture locations
-    capt_pts <- capt_loc %>% filter(deploy_id %in% g_id)
-    capt_pts$deploy_id <- factor(capt_pts$deploy_id)
-    
-    # Plots
-    bbb <- st_buffer(ud95, 1500) |> st_bbox() |> st_as_sfc()
-    
-    ###
-    ### See http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf
-    ### if you want to change homerange colors and 
-    ### https://colorbrewer2.org/ for the PTT color palette
-    ###
-    
-    # ptt_palatte <- colorRampPalette(brewer.pal(8, "Set2")) # original palette for any number of animals
-    #ptt_palatte <- colorRampPalette(gray(c(0.2,0.8))) # a gray scale palette
-    
-    ppp <- ggplot() +
-      annotation_spatial(esri_tiles) + 
-      layer_spatial(bbb, fill=NA, size=0, color=NA) +
-      #Devin original code: 
-      #annotation_spatial(pts, aes(color=ptt), size=0.25, alpha=1) +
+    tmp
+  }
   
-  #Gaos: 
-  # all black. Grey out palatte lines above, as well as annotation line above, and use this: 
-  annotation_spatial(pts, color = "black", size=0.25, alpha=0.05) + 
-      
-      # scale_color_manual(values=ptt_palatte(N)) +                # ptt colors
-      guides(color = guide_legend(override.aes = list(size = 2))) +
-      labs(color = "PTT") + 
-      # layer_spatial(ud_cont[1,], color="royalblue4", lwd=0.75) +      # 95% quantile
-      # layer_spatial(ud_cont_pol[2,], color="gold", lwd=0.75) +            # 50% quantile
-      layer_spatial(ud_cont_poly[1,], color="royalblue", lwd=0.25, fill="royalblue", alpha=0.3) +      # 95% quantile polygon
-      layer_spatial(ud_cont_poly[2,], color="firebrick2", lwd=0.25, fill="firebrick2", alpha=0.3) +    # 50% quantile polygon
-      annotation_spatial(land, fill = "gray50", size = 0) +           # land
-      layer_spatial(capt_pts, size=2, alpha=1, color="black", shape=3) + # capture locations see http://www.sthda.com/english/wiki/ggplot2-point-shapes to change shape
-      theme_bw() + theme(panel.grid.major = element_blank(), 
-                         panel.grid.minor = element_blank(),
-                         axis.ticks=element_blank(), axis.text=element_blank()) +
-      annotation_scale()
-    ggsave(ppp, file=paste0(plot_dir, grp_lvl,".png"), width=6.5, height=4)
+  grd2 <- st_bbox_list(ud1) %>% st_as_sfc %>% st_buffer(2000) %>% 
+    cu_ud_grid(barrier=land, cellsize=100)
+  
+  # plan("multisession", workers=7) # uncomment for parallel processing
+  ud2 <- foreach(j=1:N, .packages=c("sf","dplyr")) %do% {
+    cu_kde_ud_sample(g_locs[[j]][1:8], grd2)
+  }
+  
+  ud <- cu_avg_ud(ud2, w="ess")
+  ud_cont <- cu_ud_contour(ud, c(0.95,0.5))
+  ud_cont_poly <- ud_cont %>% st_cast("POLYGON")
+  # ud %>% cu_hud() %>% mapview(zcol='ud')
+  
+  # Save UD data and create 95% and 50% UD quantiles
+  ud_group_df$ud_full[g] <- paste0(file_dir,"ud_full/",grp_lvl,".rds")
+  saveRDS(ud, file=ud_group_df$ud_full[g])
+  
+  ud95 <- cu_hud(ud, 0.95)
+  ud_group_df$area95[[g]] <- ud_area(ud95)
+  ud_group_df$ud_95[g] <- paste0(file_dir,"ud_95/",grp_lvl,".rds")
+  saveRDS(ud95, file=ud_group_df$ud_95[g])
+  
+  ud50 <- cu_hud(ud, 0.50)
+  ud_group_df$area50[[g]] <- ud_area(ud50)
+  ud_group_df$ud_50[g] <- paste0(file_dir,"ud_50/",grp_lvl,".rds")
+  saveRDS(ud50, file=ud_group_df$ud_50[g])
+  
+  pts <- locs_data %>% filter(deploy_id %in% g_id) %>% unnest(cols=data) %>% st_as_sf() %>% mutate(deploy_id=factor(deploy_id))
+  
+  ## Capture locs - Gaos: grey these out and the capt line furhter down to eliminate capture locations
+  capt_pts <- capt_loc %>% filter(deploy_id %in% g_id)
+  capt_pts$deploy_id <- factor(capt_pts$deploy_id)
+  
+  # Plots
+  bbb <- st_buffer(ud95, 1500) |> st_bbox() |> st_as_sfc()
+  
+  ###
+  ### See http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf
+  ### if you want to change homerange colors and 
+  ### https://colorbrewer2.org/ for the PTT color palette
+  ###
+  
+  # ptt_palatte <- colorRampPalette(brewer.pal(8, "Set2")) # original palette for any number of animals
+  #ptt_palatte <- colorRampPalette(gray(c(0.2,0.8))) # a gray scale palette
+  
+  ppp <- ggplot() +
+    annotation_spatial(esri_tiles) + 
+    layer_spatial(bbb, fill=NA, size=0, color=NA) +
+    #Devin original code: 
+    #annotation_spatial(pts, aes(color=ptt), size=0.25, alpha=1) +
     
-    p()
+    #Gaos: 
+    # all black. Grey out palatte lines above, as well as annotation line above, and use this: 
+    annotation_spatial(pts, color = "black", size=0.25, alpha=0.05) + 
     
-  } # Group loop end
-})
+    # scale_color_manual(values=ptt_palatte(N)) +                # ptt colors
+    guides(color = guide_legend(override.aes = list(size = 2))) +
+    labs(color = "PTT") + 
+    # layer_spatial(ud_cont[1,], color="royalblue4", lwd=0.75) +      # 95% quantile
+    # layer_spatial(ud_cont_pol[2,], color="gold", lwd=0.75) +            # 50% quantile
+    layer_spatial(ud_cont_poly[1,], color="royalblue", lwd=0.25, fill="royalblue", alpha=0.3) +      # 95% quantile polygon
+    layer_spatial(ud_cont_poly[2,], color="firebrick2", lwd=0.25, fill="firebrick2", alpha=0.3) +    # 50% quantile polygon
+    annotation_spatial(land, fill = "gray50", size = 0) +           # land
+    layer_spatial(capt_pts, size=2, alpha=1, color="black", shape=3) + # capture locations see http://www.sthda.com/english/wiki/ggplot2-point-shapes to change shape
+    theme_bw() + theme(panel.grid.major = element_blank(), 
+                       panel.grid.minor = element_blank(),
+                       axis.ticks=element_blank(), axis.text=element_blank()) +
+    annotation_scale()
+  ggsave(ppp, file=paste0(plot_dir, grp_lvl,".png"), width=6.5, height=4)
+  
+  p()
+  
+} # Group loop end
 ```
 
 ### Save output
