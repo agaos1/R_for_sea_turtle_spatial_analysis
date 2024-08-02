@@ -53,6 +53,9 @@ locs$dispersal_plt
 
 ### Examine the dispersal plots for individual animals
 
+0 = stationary bout(s)
+1 = migrations
+
 After looking through the plots of all animals you may way to examine some more closely and change the dates for migration, etc. Or, you may want to delete some locations. First let's look at PTT 178536 (row 19).It looks like the animal started departing for migration sooner than the `cu_migration_det()` function detected it. So we use the `plotly` package to create an interactive plot so that we can get the dates that we want.
 ```{r}
 locs$dispersal_plt[[19]] %>% ggplotly() #Change the turtle number as needed
@@ -75,16 +78,21 @@ locs$dispersal_plt[[10]]
 ```
 
 
-GAOS: Attempting to re-assign migration for 178577 (row 22) into the pre-migration phase and add the final locations into migration phase. Was able to to first part, but not sure about the second part. Also, there is still a 3rd phase...how do I eliminate?
+GAOS: Attempting to re-assign migration for 178577 (row 22) into the pre-migration phase and add the final locations into migration phase. Was able to to first part, but not sure about the second part. Also, there is still a 3rd phase...should I eliminate?
 ```{r}
 locs$dispersal_plt[[22]] %>% ggplotly() #Change the turtle number as needed
 locs$migr_tbl[[22]][1,]$end <- mdy("7/10/2022")
 locs$migr_tbl[[22]][2,]$start <- mdy("7/11/2022")
+locs$migr_tbl[[22]][2,]$end <- mdy("7/14/2022")
+locs$dispersal_plt[[22]] <- cu_plot_disp(locs$data[[22]], locs$migr_tbl[[22]]) + ggtitle(paste0("ID:",locs$deploy_id[[22]], " / row:",22))
+locs$dispersal_plt[[22]]
+
+locs$migr_tbl[[22]] <- locs$migr_tbl[[22]][1:2,]
 locs$dispersal_plt[[22]] <- cu_plot_disp(locs$data[[22]], locs$migr_tbl[[22]]) + ggtitle(paste0("ID:",locs$deploy_id[[22]], " / row:",22))
 locs$dispersal_plt[[22]]
 ```
 
-GAOS: Reassigning some locations to pre-migration phase. I did this and it actually eliminated some locations. Why? Perhaps because there is a day different in end and start. will redo
+GAOS: Reassigning some locations to pre-migration phase. I did this and it actually eliminated some locations...because there is a day different in end and start. will redo
 ```{r}
 locs$dispersal_plt[[18]] %>% ggplotly() #Change the turtle number as needed
 locs$migr_tbl[[18]][1,]$end <- mdy("7/22/2019")
@@ -100,6 +108,8 @@ locs$migr_tbl[[14]][1,]$end <- mdy("6/4/2019")
 locs$migr_tbl[[14]][2,]$start <- mdy("6/5/2019")
 locs$dispersal_plt[[14]] <- cu_plot_disp(locs$data[[14]], locs$migr_tbl[[14]]) + ggtitle(paste0("ID:",locs$deploy_id[[14]], " / row:",14))
 locs$dispersal_plt[[14]]
+
+locs$migr_tbl[[14]] <- locs$migr_tbl[[14]][2,]
 ```
 
 
