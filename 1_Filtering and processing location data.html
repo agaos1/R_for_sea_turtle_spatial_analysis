@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.4.553">
+<meta name="generator" content="quarto-1.4.555">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -97,25 +97,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 
 <p><u>ARG: Any underlined text in this document that start with ARG: represents notes to self on things that I need to further clarify and set up.</u></p>
-<p><u>ARG: I added the load_libraries.R file</u> <u>to the parent folder, but need Devin to confirm all the necessary packages are listed.</u></p>
 <section id="folder-and-file-preparation" class="level1">
 <h1>Folder and file preparation</h1>
 <ul>
-<li><p>The default working directory for Quarto is the directory of the Quarto Rmd file, so if you are storing this Quarto Rmd file in a different folder than the working director, you’ll need to tell Quarto. To do so, go to: <code>Tools -&gt; Global Options -&gt; R Markdown</code> and choose the option - Evaluate chunks in “Current” directory.</p></li>
-<li><p>At minimum the working directory must contain a folder titled as follows:</p></li>
+<li>At minimum the working directory must contain a folder titled as follows:</li>
 </ul>
-<ol type="1">
-<li>raw_data</li>
-</ol>
+<p>raw_data</p>
 <ul>
 <li>Within the raw_data folder there should be a folder titled “indiv_tags” that contains all the raw source files for the tags of interest (i.e., all the files downloaded from Wildlife Computers) as well as a CSV file titled “Metadata” containing the data for all the tags.</li>
 </ul>
-<ol start="2" type="1">
-<li>load_libraries.R</li>
-</ol>
-<ul>
-<li>Should contain all the packages needed for any of the processing in this sea turtle spatial analysis R processing code.</li>
-</ul>
+<p>Also easier to have qmd files in the directory</p>
 <p><u>ARG: We need to provide a header template for the Metadata file to ensure harmony with ongoing data processing steps.</u></p>
 </section>
 <section id="step-1---initial-data-processing" class="level1">
@@ -126,7 +117,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="cell">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Package names</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>packages <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"tidyverse"</span>,<span class="st">"mapview"</span>,<span class="st">"ggspatial"</span>,<span class="st">"trip"</span>,<span class="st">"crsuggest"</span>,<span class="st">"units"</span>,</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>              <span class="st">"plotly"</span>,<span class="st">"sf"</span>, <span class="st">"janitor"</span>,<span class="st">"lubridate"</span>,<span class="st">"crsuggest"</span>,<span class="st">"doFuture"</span>,<span class="st">"picMaps"</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>              <span class="st">"plotly"</span>,<span class="st">"sf"</span>,<span class="st">"janitor"</span>,<span class="st">"lubridate"</span>,<span class="st">"crsuggest"</span>,<span class="st">"doFuture"</span>,<span class="st">"picMaps"</span>,<span class="st">"rosm"</span>)</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co"># R package repositories</span></span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>repos <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
@@ -143,7 +134,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>packages <span class="ot">&lt;-</span> <span class="fu">c</span>(packages,<span class="st">"crawlUtils"</span>)</span>
 <span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Packages loading</span></span>
-<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="fu">invisible</span>(<span class="fu">lapply</span>(packages, library, <span class="at">character.only =</span> <span class="cn">TRUE</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="fu">invisible</span>(<span class="fu">lapply</span>(packages, library, <span class="at">character.only =</span> <span class="cn">TRUE</span>))</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="fu">write_csv</span>(<span class="fu">data.frame</span>(<span class="at">packages=</span>packages), <span class="st">"packages.csv"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="read-in-telemetry-data-filter-locations-by-argos-location-class-and-remove-grossly-inaccurate-positions" class="level3">
@@ -152,7 +144,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="cell">
 <div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>locs <span class="ot">&lt;-</span> <span class="fu">cu_read_wc_dirs</span>(<span class="st">"raw_data/indiv_tags"</span>) <span class="sc">%&gt;%</span> </span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(quality<span class="sc">!=</span><span class="st">"Z"</span>) <span class="sc">%&gt;%</span> </span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(longitude<span class="sc">&gt;</span><span class="dv">144</span>, longitude<span class="sc">&lt;</span><span class="dv">146</span>, latitude<span class="sc">&gt;</span><span class="dv">13</span>, latitude<span class="sc">&lt;</span><span class="dv">16</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(longitude<span class="sc">&gt;</span><span class="dv">94</span>, longitude<span class="sc">&lt;</span><span class="dv">161</span>, latitude<span class="sc">&gt;-</span><span class="dv">9</span>, latitude<span class="sc">&lt;</span><span class="dv">29</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="filter-out-locations-with-comments" class="level3">
@@ -191,7 +183,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>meta_data <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"raw_data/Metadata.csv"</span>) <span class="sc">%&gt;%</span> </span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">clean_names</span>() <span class="sc">%&gt;%</span> </span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="co">#indicate project here or eliminate this line</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(project<span class="sc">==</span><span class="st">"NAVFAC_NavyBaseGuam"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="co">#filter(project=="NAVFAC_NavyBaseGuam") %&gt;% </span></span>
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rename</span>(<span class="at">deploy_id =</span> ptt_unique_id) <span class="sc">%&gt;%</span> </span>
 <span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">deploy_date =</span> <span class="fu">mdy</span>(deploy_date))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
@@ -239,7 +231,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>locs <span class="ot">&lt;-</span> <span class="fu">filter</span>(locs, keep)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p><u>ARG: I moved the subsequent three sections (Header 3) so that rather than being subsequent to the data projection steps, they come before. Devin to confirm if feasible or if need to come after.</u></p>
 </section>
 <section id="get-number-of-locations-per-animal" class="level3">
 <h3 class="anchored" data-anchor-id="get-number-of-locations-per-animal">Get number of locations per animal</h3>
@@ -265,39 +256,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>locs <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">st_transform</span>(prj)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
-<section id="obtain-a-land-polygon-for-mapping" class="level3">
-<h3 class="anchored" data-anchor-id="obtain-a-land-polygon-for-mapping">Obtain a land polygon for mapping</h3>
-<p>(Optional) Here we’ll use the <code>pic_maps</code> package to get a spatial polygon for the coastline. You’ll need to download the OSM data the first time you use it. So run the code below if this is the first time using the <code>picMaps</code> package. The <code>set_data_storage()</code> function will create a directory where the worldwide Open Street Maps (OSM) data will be downloaded. You can specify this directory to be wherever you want that has write permissions. The directory specified below is the default.</p>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># set_data_storage(path = "~/.picmaps_data")</span></span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="co"># osm_download()</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>To get a land polygon for our location data we create a bounding box and buffer it by 150km (150,000m), turn it in to a spatial object and <code>osm_coast</code> will obtain all land polygons that intersect that buffer. Setting <code>keep=0.5</code> in the <code>osm_coast()</code> will retain about 50% of the raw coastline data which reduces the resolution some. The land polygons will be of the same projection as the <code>locs</code> data.</p>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>land <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">st_bbox</span>() <span class="sc">%&gt;%</span> <span class="fu">st_as_sfc</span>() <span class="sc">%&gt;%</span> </span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_buffer</span>(<span class="dv">150000</span>) <span class="sc">%&gt;%</span> <span class="fu">osm_coast</span>(<span class="at">union=</span><span class="cn">TRUE</span>, <span class="at">keep=</span><span class="fl">0.5</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>Alternatively, if you have a specific .shp file you would like to use instead, the following code will read in the shape file.</p>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># land &lt;- read_sf("raw_data/marianas/marianas.shp")</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</section>
-<section id="create-visibility-graph-for-rerouting" class="level3">
-<h3 class="anchored" data-anchor-id="create-visibility-graph-for-rerouting">Create visibility graph for rerouting</h3>
-<p>Here a visability graph is created for routing predicted or simulated track locations around land polygons</p>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>vis_graph <span class="ot">&lt;-</span> pathroutr<span class="sc">::</span><span class="fu">prt_visgraph</span>(land, <span class="at">centroids=</span><span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</section>
 <section id="save-output-for-continuing-later" class="level3">
 <h3 class="anchored" data-anchor-id="save-output-for-continuing-later">Save output for continuing later</h3>
 <p>If you would would like to pause here and continue working later you should save the products so you don’t have to repeat these steps.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">dir.create</span>(<span class="st">"processed_data"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">dir.create</span>(<span class="st">"processed_data"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stderr">
 <pre><code>Warning in dir.create("processed_data"): 'processed_data' already exists</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">save</span>(locs, land, vis_graph, packages, <span class="at">file=</span><span class="st">"processed_data/clean_data.RData"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">save</span>(locs, <span class="at">file=</span><span class="st">"processed_data/clean_data.RData"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Otherwise, you can continue with step 2 without saving.</p>
 </section>

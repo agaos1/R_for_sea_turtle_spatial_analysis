@@ -56,8 +56,39 @@ Sometimes this works because there is a random process to get the starting value
 
 [ARG: I'm not really clear on what the code above actually does to "refit"]{.underline}
 
+## Obtain a land polygon for mapping
 
-### Make location predictions and posterior samples of observations
+(Optional) Here we'll use the `pic_maps` package to get a spatial polygon for the coastline. You'll need to download the OSM data the first time you use it. So run the code below if this is the first time using the `picMaps` package. The `set_data_storage()` function will create a directory where the worldwide Open Street Maps (OSM) data will be downloaded. You can specify this directory to be wherever you want that has write permissions. The directory specified below is the default.
+
+```{r, eval=FALSE}
+# set_data_storage(path = "~/.picmaps_data")
+# osm_download()
+```
+
+To get a land polygon for our location data we create a bounding box and buffer it by 150km (150,000m), turn it in to a spatial object and `osm_coast` will obtain all land polygons that intersect that buffer. Setting `keep=0.5` in the `osm_coast()` will retain about 50% of the raw coastline data which reduces the resolution some. The land polygons will be of the same projection as the `locs` data.
+
+```{r, output=FALSE}
+land <- locs %>% st_bbox() %>% st_as_sfc() %>% 
+  st_buffer(150000) %>% osm_coast(union=TRUE, keep=0.5)
+```
+
+Alternatively, if you have a specific .shp file you would like to use instead, the following code will read in the shape file.
+
+```{r, eval=FALSE}
+# land <- read_sf("raw_data/marianas/marianas.shp")
+```
+
+### Create visibility graph for rerouting
+
+Here a visability graph is created for routing predicted or simulated track locations around land polygons
+
+```{r}
+vis_graph <- pathroutr::prt_visgraph(land, centroids=TRUE)
+```
+
+
+
+## Make location predictions and posterior samples of observations
 
 Here we will make predictions as well as draw simulated true locations conditional on the data observed.
 ```{r}

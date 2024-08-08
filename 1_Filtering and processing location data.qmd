@@ -57,7 +57,7 @@ In the code chunk below we are removing only "Z" location classes, but can remov
 ```{r}
 locs <- cu_read_wc_dirs("raw_data/indiv_tags") %>% 
   filter(quality!="Z") %>% 
-  filter(longitude>144, longitude<146, latitude>13, latitude<16) 
+  filter(longitude>94, longitude<161, latitude>-9, latitude<29) 
 
 ```
 
@@ -186,35 +186,6 @@ prj <- as.numeric(suggest_crs(locs)$crs_code[[1]])
 locs <- locs %>% st_transform(prj)
 ```
 
-### Obtain a land polygon for mapping
-
-(Optional) Here we'll use the `pic_maps` package to get a spatial polygon for the coastline. You'll need to download the OSM data the first time you use it. So run the code below if this is the first time using the `picMaps` package. The `set_data_storage()` function will create a directory where the worldwide Open Street Maps (OSM) data will be downloaded. You can specify this directory to be wherever you want that has write permissions. The directory specified below is the default.
-
-```{r, eval=FALSE}
-# set_data_storage(path = "~/.picmaps_data")
-# osm_download()
-```
-
-To get a land polygon for our location data we create a bounding box and buffer it by 150km (150,000m), turn it in to a spatial object and `osm_coast` will obtain all land polygons that intersect that buffer. Setting `keep=0.5` in the `osm_coast()` will retain about 50% of the raw coastline data which reduces the resolution some. The land polygons will be of the same projection as the `locs` data.
-
-```{r, output=FALSE}
-land <- locs %>% st_bbox() %>% st_as_sfc() %>% 
-  st_buffer(150000) %>% osm_coast(union=TRUE, keep=0.5)
-```
-
-Alternatively, if you have a specific .shp file you would like to use instead, the following code will read in the shape file.
-
-```{r, eval=FALSE}
-# land <- read_sf("raw_data/marianas/marianas.shp")
-```
-
-### Create visibility graph for rerouting
-
-Here a visability graph is created for routing predicted or simulated track locations around land polygons
-
-```{r}
-vis_graph <- pathroutr::prt_visgraph(land, centroids=TRUE)
-```
 
 ### Save output for continuing later
 
@@ -222,7 +193,7 @@ If you would would like to pause here and continue working later you should save
 
 ```{r}
 dir.create("processed_data")
-save(locs, land, vis_graph, file="processed_data/clean_data.RData")
+save(locs, file="processed_data/clean_data.RData")
 ```
 
 Otherwise, you can continue with step 2 without saving.
