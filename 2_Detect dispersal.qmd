@@ -116,7 +116,7 @@ stat_travel$bout_tbl[[1]]$start[2] <- as.Date("2015-04-21")
 stat_travel$bout_tbl[[1]]$start[3] <- as.Date("2015-07-03")
 ```
 
-Just to check we can replot the dispersion figures.
+Just to check we can re-plot the dispersion figures.
 
 ```{r}
 #| output: false
