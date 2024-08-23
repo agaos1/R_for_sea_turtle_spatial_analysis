@@ -33,7 +33,7 @@ Now we can estimate migration start and stop dates, if there are any, in each de
 #| output: false
 stat_travel <- tibble(deploy_id = locs$deploy_id)
 stat_travel$bout_tbl <- foreach(i=1:nrow(locs)) %do% {
-  cu_bout_det(locs$data[[i]], min_disp=20, min_bout_len=3)
+  cu_bout_det_mbc(locs$data[[i]], min_disp=20, migr_speed_cut=1)
 }
 ```
 
@@ -47,74 +47,70 @@ dispersal_plt <- foreach(i=1:nrow(stat_travel)) %do% {
 ```
 
 
+### Adjust bout tables
 
-
-### Adjust `stat_travel.csv` file based on plots
-
-Next we will export the data to a new  `stat_travel.csv` file so that we can adjust the start and end times for the new animal bouts as necessary.  
-
+The `cu_bout_det_mbc()` function does a fairly decent job at detecting migration transitions. However, it will often be mistaken. So the best thing to do is look at all the plots,
 ```{r}
+#| output: false
 dispersal_plt
 ```
+then we can adjust them as necessary by hand. There are two ways to do this. (1) you can write out the data to a `.csv` file and perform edits there
+```{r}
+stat_travel %>% unnest(cols=bout_tbl) %>% mutate(avg_speed = round(avg_speed,2)) %>% write_csv("processed_data/stat_travel.csv")
+```
 
-Upon examining the last plot, `dispersal_plt[[27]]`, for example we can see that the migration period lasts a little to long and should probably end on 11/4/2023. Looking that the bout table for that animal,
+Or, we can manually adjust each table by hand. Upon examining the plot, `dispersal_plt[[25]]`, for example we can see that we might want to separate the 2 distinct portions into 2 separate bouts. Looking that the bout table for that animal,
 ```{r}
-stat_travel$bout_tbl[[27]]
+stat_travel$bout_tbl[[25]]
 ```
-we can see that the auto detection function has the migration bout ending on 11/9/2023. We can simply change the start date of the next bout (bout number 2) to the appropriate value,
+we can see that the auto detection function has only assigned 1 bout to the whole timeline. We can simply add another row for the start of the second bout
 ```{r}
-stat_travel$bout_tbl[[27]]$start[2] <- as.Date("2023-11-04")
+stat_travel$bout_tbl[[25]] <- stat_travel$bout_tbl[[25]] %>% add_row(travel=0, bout=2, start=as.Date("2022-06-04"), avg_speed=NA, .after=1)
+
+stat_travel$bout_tbl[[25]]
 ```
-The last line of the bout table is the day after the last telemetry observation is observed. If you want to delete some data at the end, all you have to do is adjust that last `start` date. Now after examinging all the plots, we will make the following adjustments:
+The last line of the bout table is the day after the last telemetry observation is observed. If you want to delete some data at the end, all you have to do is adjust that last `start` date. Now after examining all the plots, we will make the following adjustments:
 ```{r}
-# Animal 24
-stat_travel$bout_tbl[[24]]$start[2] <- as.Date("2023-08-27")
-stat_travel$bout_tbl[[24]]$start[3] <- as.Date("2023-10-17")
-## Animal 23
-stat_travel$bout_tbl[[23]]$start[2] <- as.Date("2023-09-24")
 ## Animal 22
-stat_travel$bout_tbl[[22]]$start[2] <- as.Date("2022-05-31")
-stat_travel$bout_tbl[[22]]$start[3] <- as.Date("2022-06-03")
-stat_travel$bout_tbl[[22]]$start[4] <- as.Date("2022-07-11")
-## Animal 21
-stat_travel$bout_tbl[[21]]$travel[1] <- 1
-stat_travel$bout_tbl[[21]] <- stat_travel$bout_tbl[[21]][-2,]
-stat_travel$bout_tbl[[21]]$start[[2]] <- as.Date("2019-10-10")
-stat_travel$bout_tbl[[21]]$start[[3]] <- as.Date("2019-10-31")
-stat_travel$bout_tbl[[21]]$bout[1:4] <- 1:4
+stat_travel$bout_tbl[[22]]$start[2] <- as.Date("2022-07-11")
 ## Animal 18
-stat_travel$bout_tbl[[18]]$start[[2]] <- as.Date("2019-07-23")
+stat_travel$bout_tbl[[18]] <- stat_travel$bout_tbl[[18]] %>% 
+  add_row(travel=1, bout=2, start=as.Date("2019-07-23"), avg_speed=NA, .after=1)
+stat_travel$bout_tbl[[18]]$travel[1] <- 0
+stat_travel$bout_tbl[[18]]$bout[3] <- 3
+## Animal 17
+stat_travel$bout_tbl[[17]] <- stat_travel$bout_tbl[[17]] %>% 
+  add_row(travel=1, bout=2, start=as.Date("2020-08-06"), avg_speed=NA, .after=1)
+stat_travel$bout_tbl[[17]]$travel[1] <- 0
+stat_travel$bout_tbl[[17]]$bout[3] <- 3
 ## Animal 15
-stat_travel$bout_tbl[[15]]$travel[[1]] <- 0
-stat_travel$bout_tbl[[15]]$start[[1]] <- as.Date("2019-06-10")
-## Animal 14
-stat_travel$bout_tbl[[14]]$start[[2]] <- as.Date("2019-06-07")
+# Remove the first 2 locations
+locs$data[[15]] <- locs$data[[15]][-c(1:2),]
+## Animal 13
+stat_travel$bout_tbl[[13]] <- stat_travel$bout_tbl[[13]] %>% add_row(
+  travel=1, bout=1, start=as.Date("2019-09-10"), .before=1
+)
+stat_travel$bout_tbl[[13]]$start[2] <- as.Date("2019-10-04")
 ## Animal 11
-stat_travel$bout_tbl[[11]] <- stat_travel$bout_tbl[[11]][-1,]
-stat_travel$bout_tbl[[11]]$start[[1]] <- as.Date("2017-05-23")
-stat_travel$bout_tbl[[11]]$bout[[1]] <- 1
+locs$data[[11]] <- locs$data[[11]][-c(1:2),]
 ## Animal 10
-stat_travel$bout_tbl[[10]] <- stat_travel$bout_tbl[[10]][-2,]
-stat_travel$bout_tbl[[10]]$start[[2]] <- as.Date("2017-10-11")
+locs$data[[10]] <- locs$data[[10]] %>% filter(datetime<=as.Date("2017-10-11"))
 ## Animal 7
-stat_travel$bout_tbl[[7]]$start[2] <- as.Date("2017-09-09")
-## Animal 6
-stat_travel$bout_tbl[[6]]$start[2] <- as.Date("2019-06-09")
-## Animal 5
-stat_travel$bout_tbl[[5]]$start[2] <- as.Date("2019-03-09")
-## Animal 4
-stat_travel$bout_tbl[[4]] <- stat_travel$bout_tbl[[4]][-4,]
-stat_travel$bout_tbl[[4]]$start[2] <- as.Date("2016-08-24")
-stat_travel$bout_tbl[[4]]$start[3] <- as.Date("2016-10-09")
+stat_travel$bout_tbl[[7]] <- stat_travel$bout_tbl[[7]] %>% 
+  add_row(travel=0, bout=1, start=as.Date("2017-09-01"), avg_speed=NA, .before=1)
+stat_travel$bout_tbl[[7]]$start[2] <-as.Date("2017-09-12")
+stat_travel$bout_tbl[[7]]$bout[2:3] <- 2:3
 ## Animal 2
-stat_travel$bout_tbl[[2]] <- stat_travel$bout_tbl[[2]][-c(6:7),] 
-stat_travel$bout_tbl[[2]]$start[5] <- as.Date("2016-09-17")
-stat_travel$bout_tbl[[2]]$start[6] <- as.Date("2016-10-25")
-stat_travel$bout_tbl[[2]]$start[7] <- as.Date("2016-10-26")
-## Animal 1
-stat_travel$bout_tbl[[1]]$start[2] <- as.Date("2015-04-21")
-stat_travel$bout_tbl[[1]]$start[3] <- as.Date("2015-07-03")
+stat_travel$bout_tbl[[2]] <- stat_travel$bout_tbl[[2]] %>% 
+  add_row(travel=0, bout=2, start=as.Date("2016-09-17"), .after=1) %>% 
+  add_row(travel=0, bout=3, start=as.Date("2016-10-25"), .after=2)
 ```
+
+For animal 5, there seems to be quite a bit of error. So, it sometimes helps to increase the `migr_speed_cut` argument a little if there is to much "travel" selection and also increase `Gmax`, e.g., 
+```{r}
+stat_travel$bout_tbl[[5]] <-  cu_bout_det_mbc(locs$data[[5]], min_disp=20, migr_speed_cut=1.25, Gmax=5)
+```
+
 
 Just to check we can re-plot the dispersion figures.
 
@@ -131,6 +127,7 @@ dispersal_plt
 ### Save output for continuing later
 If you would would like to pause here and continue working later you should save the products so you don't have to repeat these steps.
 ```{r}
+stat_travel %>% unnest(cols=bout_tbl) %>% mutate(avg_speed = round(avg_speed,2)) %>% write_csv("processed_data/stat_travel.csv")
 save(stat_travel, file="processed_data/stat_travel.RData")
 ```
 Otherwise, you can continue with step 2 without saving.
