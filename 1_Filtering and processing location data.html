@@ -250,7 +250,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="project-data-for-ctcrw-modeling" class="level3">
 <h3 class="anchored" data-anchor-id="project-data-for-ctcrw-modeling">Project data for CTCRW modeling</h3>
 <p><u>ARG: Devin to review the subsequent code for finding the appropriate projection (for area of interest)</u></p>
-<p>Use <code>crsuggest</code> package to determine top projection. EPSG 6637 is the top projection for Guam.</p>
+<p>Use <code>crsuggest</code> package to determine top projection. We will then project the data when we subset into segments.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>prj <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(<span class="fu">suggest_crs</span>(locs)<span class="sc">$</span>crs_code[[<span class="dv">1</span>]])</span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>locs <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">st_transform</span>(prj)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>

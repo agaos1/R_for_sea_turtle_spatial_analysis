@@ -179,7 +179,7 @@ locs <- filter(locs, deploy_id %in% anim_locs$deploy_id)
 
 [ARG: Devin to review the subsequent code for finding the appropriate projection (for area of interest)]{.underline}
 
-Use `crsuggest` package to determine top projection. EPSG 6637 is the top projection for Guam.
+Use `crsuggest` package to determine top projection. We will then project the data when we subset into segments. 
 
 ```{r}
 prj <- as.numeric(suggest_crs(locs)$crs_code[[1]])

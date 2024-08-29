@@ -6,177 +6,214 @@ editor_options:
   chunk_output_type: console
 ---
 
-### Read in saved data and load packages
+## Read in saved data and load packages
 If you previously stopped after step 2 and want to restart, you have to read in the saved data and load all the packages.
 
 ```{r}
 #| output: false
-load("processed_data/migr_det_data.RData")
+load("processed_data/clean_data.RData")
+load("processed_data/stat_travel.RData")
 packages <- read.csv("packages.csv")$packages
 invisible(lapply(packages, library, character.only = TRUE))
 ```
 
-## Fit Brownian motion model to make predictions
+## Segment data based on movement type
 
-In this alaysis we are only interested in the nonmigratory segments so we will first remove those from the data.
+First we will join the bout data so we can separate stationary data from migration data.
 ```{r}
-locs <- locs %>% rowwise() %>% mutate(
-  data = list(filter(data, migr_evt==0))
-)
+locs <- locs %>% group_by(deploy_id) %>% arrange(datetime) %>% nest() %>%
+  full_join(stat_travel, by="deploy_id")
+
+locs$data <- foreach(i=1:nrow(locs)) %do% {
+  cu_add_bouts(locs$data[[i]], locs$bout_tbl[[i]]) 
+}
+
+locs <- locs %>% select(-bout_tbl)
+
+locs <- locs %>% unnest(cols=data) %>% ungroup() %>% st_as_sf()
 ```
 
+Now we will separate the deployments into different bouts so that we are not simultaneously modeling pre and post-migration segments. There are some deployments with multiple bouts within the Mariana Islands, so we will first identify Mariana Island locations then filter the data. We can then easily filter the post-migration data based on `travel==0` and locations that are outside the Mariana buffer. 
 
-Now we can fit a Brownian motion movement model to the data. 
 ```{r}
-constr <- list(
-  lower=c(log(0.5), log(0.5), 3),
-  upper=rep(Inf,3)
-)
+mariana <- st_bbox(c(xmin=144, xmax=146, ymin=13, ymax=21)) %>% st_as_sfc() %>% st_as_sf(crs=4326) %>%
+  osm_coast(keep=0.5) %>% st_transform(st_crs(locs))
+mariana100 <- st_buffer(mariana, 100000) %>% st_union() %>% st_as_sf()
+locs_mariana <- locs %>% filter(travel==0) %>% st_filter(mariana100)
+locs_post <- locs %>% filter(travel==0) %>% st_filter(mariana100, .predicate = st_not_within)
+```
 
-N <- nrow(locs)
+The migration trips can be identified by those bouts that are travel bouts and extend beyond the Mariana buffer
 
-locs_fit <- locs %>% select(deploy_id)
-locs_fit$fit <- foreach(i=1:N) %do% {
-  cu_crw_argos(locs$data[[i]], bm=TRUE, crw_control=list(constr=constr))
+```{r}
+migration_bouts <- locs %>% filter(travel==1) %>% st_filter(mariana100, .predicate = st_not_within) %>% 
+  st_drop_geometry() %>% select(deploy_id, bout) %>% distinct()
+locs_migration <- locs %>% filter(travel==1) %>% right_join(migration_bouts, by=c('deploy_id','bout'))
+```
+
+Now we will re-project the data to something more appropriate for each type. 
+```{r}
+locs_mariana <- locs_mariana %>% st_as_sf() 
+prj_mariana <- as.numeric(suggest_crs(locs_mariana)$crs_code[[1]])
+locs_mariana <- locs_mariana %>% st_transform(prj_mariana) %>%  group_by(deploy_id) %>% nest() %>% arrange(deploy_id)
+
+locs_migration <- locs_migration %>% st_as_sf() 
+prj_migration <-  as.numeric(suggest_crs(locs_migration)$crs_code[[1]])
+locs_migration <- locs_migration %>% st_transform(prj_migration) %>%  group_by(deploy_id) %>% nest() %>%
+  arrange(deploy_id)
+```
+
+For the post migration data we will project each one separately because they are in widely different areas geographically. 
+```{r}
+locs_post <- locs_post %>% st_as_sf() %>% group_by(deploy_id) %>% nest() %>% arrange(deploy_id)
+locs_post$prj <- foreach(i=1:nrow(locs_post), .combine = c) %do% {
+  as.numeric(suggest_crs(locs_post$data[[i]])$crs_code[[1]])
+}
+locs_post$data <- foreach(i=1:nrow(locs_post)) %do% {
+  st_transform(locs_post$data[[i]], locs_post$prj[[i]])
 }
 ```
 
-## Check that model was fitted to all animals
+Now we can remove deployments that don't have enough data to do anything with...
 
 ```{r}
-sapply(locs_fit$fit, class)
+locs_mariana$n <- sapply(locs_mariana$data, nrow)
+locs_mariana <- locs_mariana %>% filter(n>=30)
+
+locs_post$n <- sapply(locs_post$data, nrow)
+locs_post <- locs_post %>% filter(n>=30)
+
+locs_migration$n <- sapply(locs_migration$data, nrow)
+locs_migration<- locs_migration %>% filter(n>=30)
 ```
 
+
+## Fit Movement models
+
+Now we can fit movement models to the different data sets. Here we use Just a Brownian motion movement model
+
+```{r}
+## Fixing location error to be equal to the nominal diagnostic data values
+constr_bm <- list(
+  lower=c(0,0, -Inf),
+  upper=Inf
+)
+
+
+fit_mariana <- locs_mariana %>% select(deploy_id)
+fit_mariana$fit <- foreach(i=1:nrow(fit_mariana)) %do% {
+  cu_crw_argos(locs_mariana$data[[i]], bm=TRUE, crw_control=list(constr=constr_bm))
+}
+
+## Check for good fit
+all(sapply(fit_mariana$fit, class)=="crwFit")
+
+fit_post <- locs_post %>% select(deploy_id)
+fit_post$fit <- foreach(i=1:nrow(fit_post)) %do% {
+  cu_crw_argos(locs_post$data[[i]], bm=TRUE, crw_control=list(constr=constr_bm))
+}
+
+## Check for good fit
+all(sapply(fit_post$fit, class)=="crwFit")
+
+fit_migration <- locs_migration %>% select(deploy_id)
+fit_migration$fit <- foreach(i=1:nrow(fit_migration)) %do% {
+  cu_crw_argos(locs_migration$data[[i]], bm=TRUE, crw_control=list(constr=constr_bm))
+}
+
+## Check for good fit
+all(sapply(fit_migration$fit, class)=="crwFit")
+
+
+```
+
+
 ### (Optional) Refit any models that did not work
-The model seams to have fit for all animals (all values of the previous output are `"crwFit"`), however, if some did not fit satisfactorily, you can refit with the following code and it might work, e.g. for animal 3:
+The model seams to have fit for all animals (all values of the previous output are `"crwFit"`), however, if some did not fit satisfactorily, you can refit with the following code and it might work, e.g. for hypothetical animal 3:
 ```{r, eval=FALSE}
-# locs$fit[[3]] <- cu_crw_argos(locs$data[[3]], bm=TRUE, constr=constr)
+# fit[[3]] <- cu_crw_argos(locs$data[[3]], bm=TRUE, constr=constr_bm)
 ```
 Sometimes this works because there is a random process to get the starting values and sometimes bad values happen and if you refit it works better. 
 
 [ARG: I'm not really clear on what the code above actually does to "refit"]{.underline}
 
-## Obtain a land polygon for mapping
+## Create visibility graph for rerouting
 
-(Optional) Here we'll use the `pic_maps` package to get a spatial polygon for the coastline. You'll need to download the OSM data the first time you use it. So run the code below if this is the first time using the `picMaps` package. The `set_data_storage()` function will create a directory where the worldwide Open Street Maps (OSM) data will be downloaded. You can specify this directory to be wherever you want that has write permissions. The directory specified below is the default.
-
-```{r, eval=FALSE}
-# set_data_storage(path = "~/.picmaps_data")
-# osm_download()
-```
-
-To get a land polygon for our location data we create a bounding box and buffer it by 150km (150,000m), turn it in to a spatial object and `osm_coast` will obtain all land polygons that intersect that buffer. Setting `keep=0.5` in the `osm_coast()` will retain about 50% of the raw coastline data which reduces the resolution some. The land polygons will be of the same projection as the `locs` data.
-
-```{r, output=FALSE}
-land <- locs %>% st_bbox() %>% st_as_sfc() %>% 
-  st_buffer(150000) %>% osm_coast(union=TRUE, keep=0.5)
-```
-
-Alternatively, if you have a specific .shp file you would like to use instead, the following code will read in the shape file.
-
-```{r, eval=FALSE}
-# land <- read_sf("raw_data/marianas/marianas.shp")
-```
-
-### Create visibility graph for rerouting
-
-Here a visability graph is created for routing predicted or simulated track locations around land polygons
+Here a visability graph is created for routing predicted or simulated track locations around land polygons. This is an optional step and you don't need to do this unless you really want to map predictions or samples around land. Here we'll do it for the Mariana Islands data. We can do it for the post migration data in the next code demo (3b)
 
 ```{r}
-vis_graph <- pathroutr::prt_visgraph(land, centroids=TRUE)
+mariana <- mariana %>% st_transform(prj_mariana)
+vis_graph <- pathroutr::prt_visgraph(mariana, centroids=TRUE)
 ```
 
 
+## Make location predictions and posterior samples of observations 
 
-## Make location predictions and posterior samples of observations
+### Mariana Islands data demo
 
-Here we will make predictions as well as draw simulated true locations conditional on the data observed.
-```{r}
-locs_data <- locs %>% select(deploy_id, data)
-```
-
-[ARG: not really sure what these steps do]{.underline}
-
-We will use the `future` and `doFuture` packages to make use of parallel computing on multiple processors if desired. Use the following code to set up parallel computing. If you don't want to use it, just skip it. The `workers` argument tells the code how many cores to use. You can use the package/function `parallel::detectCores()` if you want to find out how many are available. Can change the number of workers for each computer to ensure it doesn't overload.
+Here we will make predictions as well as draw simulated true locations conditional on the data observed. We will use the `future` and `doFuture` packages to make use of parallel computing on multiple processors if desired. Use the following code to set up parallel computing. If you don't want to use it, just skip it. The `workers` argument tells the code how many cores to use. You can use the package/function `parallel::detectCores()` if you want to find out how many are available. Can change the number of workers for each computer to ensure it doesn't overload.
 ```{r}
 plan("multisession", workers=4) # uncomment for parallel processing
 ```
 
 Now we can make predictions using `%dofuture%` loops which are parallel. In the predict call we are also using the `pathroutr` package to route tracks around land. We accomplish this by making predictions at 1 hr intervals and the observations times, then routing the track around land. After that we extract the predicted locations at observation times. In the simulation draws we are just drawing locations at the observed times to account for location error in future analyses. 
+
 ```{r}
-locs_pred <- locs %>% select(deploy_id)
-locs_pred$pred <- foreach(i=1:N, .options.future=list(packages=c("sf","dplyr","crawlUtils"), seed=TRUE)) %dofuture% {
-  cu_crw_predict(locs_fit$fit[[i]], "1 hour", land, vis_graph) %>% cu_extract_obst(locs_data$data[[i]])
+pred_mariana <- locs_mariana %>% select(deploy_id)
+pred_mariana$pred <- foreach(i=1:nrow(pred_mariana), 
+                             .options.future=list(packages=c("sf","dplyr","crawlUtils"), seed=TRUE)) %dofuture% {
+  cu_crw_predict(fit_mariana$fit[[i]], "1 hour", mariana, vis_graph) %>% cu_extract_obst(locs_mariana$data[[i]])
 }
 
-locs_sample <- locs %>% select(deploy_id)
-locs_sample$sample <- foreach(i=1:N, .options.future=list(packages=c("sf","dplyr","crawlUtils"), seed=TRUE)) %dofuture% {
-  cu_crw_sample(locs_fit$fit[[i]], 20)
+sample_mariana <- locs_mariana %>% select(deploy_id)
+sample_mariana$sample <- foreach(i=1:nrow(sample_mariana), 
+                                 .options.future=list(packages=c("sf","dplyr","crawlUtils"), seed=TRUE)) %dofuture% {
+  cu_crw_sample(fit_mariana$fit[[i]], 20)
 }
 
 # You should always remove the parallel R instances when you are done
 plan("sequential")
 ```
 
-## Plot individual tracks
-
-### Create folder for track plots
-
+Now we will make predicted tracks for the migration data
 ```{r}
-if(!dir.exists("plots/Individual_tracks")){
-  dir.create("plots/Individual_tracks", recursive=TRUE)
+pred_migration <- locs_migration %>% select(deploy_id)
+pred_migration$pred <- foreach(i=1:nrow(pred_migration), 
+                             .options.future=list(packages=c("sf","dplyr","crawlUtils"))) %do% {
+                               cu_crw_predict(fit_migration$fit[[i]]) 
 }
 ```
 
-[ARG: not sure what these individual steps do:]{.underline}
+Now for the post migration data, which is a little tricky to get the coastline to map predicted locations around land. So we have to get a custom coastline for each data set.
 
-[ARG: When plotting for the Drifter tags, the 2 code chunks below for plotting individual tracks was different. I am not clear on exactly what is done different, but I believe the output is actual maps with tracks of the drifters (perhaps that's what LINESTRING does). We want to be able to to something similar so we can create maps with tracks for the turtles (or drifters), so I pasted said code into the chunk in the new Step 3_Visualizing tracks]{.underline}
-
-When plotting tracks, we first create a function to convert the point predictions to a line. Then convert the points to a line. 
 ```{r}
-pred_to_track <- function(x){
-  x |> st_geometry() |> st_combine() |> st_cast("LINESTRING")
+pred_post <- locs_post %>% select(deploy_id)
+pred_post$pred <- foreach(i=1:nrow(pred_post)) %do% {
+  coast <- locs_post$data[[i]] %>% st_buffer(100000) %>% st_union() %>% st_as_sf() %>% 
+    osm_coast(keep=0.5)
+  vis_graph <- pathroutr::prt_visgraph(coast, centroids=TRUE)
+  cu_crw_predict(fit_post$fit[[i]], "1 hour", coast, vis_graph) %>% cu_extract_obst(locs_post$data[[i]])
 }
 
-locs_pred <- locs_pred %>%  rowwise() %>% 
-  mutate(
-    track = list(pred_to_track(pred))
-  )
-```
-
-Now we can plot all the tracks for each PTT:
-```{r}
-for(i in 1:nrow(locs_pred)){
-  ddd <- locs_pred$track[[i]]
-  bbb <- st_bbox(ddd) %>%  st_as_sfc() %>% st_buffer(1000) 
-  ppp <- ggplot() +
-    layer_spatial(ddd, color='turquoise2') +
-    layer_spatial(bbb, fill=NA, size=0, color=NA) +
-    annotation_spatial(land, fill = "gray30", size = 0, alpha=0.1) +
-    #scale_y_continuous(breaks=seq(-180,180,1)) +
-    #scale_x_continuous(breaks=seq(-180,180,1)) +
-    theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
-    theme(legend.position = "None") +
-    ggtitle(paste0("Animal PTT: ", locs_pred$deploy_id[[i]]))
-  ggsave(ppp, file=paste0("plots/Individual_tracks/",locs_pred$deploy_id[[i]],".png"), width=6.5, height=4)
+sample_post <- locs_post %>% select(deploy_id)
+sample_post$sample <- foreach(i=1:nrow(sample_post)) %do% {
+  cu_crw_sample(fit_post$fit[[i]], 20)
 }
 ```
 
 
-## Estimating UDs
-Now we will begin to estimate individual UDs using the multiple imputation method to account for location error. See [Scharf et al. (2017)](https://link.springer.com/article/10.1007/s13253-017-0294-5). But first we will obtain the effective sample size of the data. The ESS estimates about how many independent locations are in the data after accounting for autocorrelation. This step can also be a little time consuming, so we also can run this in parallel
+## Save data for future steps
+
 ```{r}
-locs_ess <- locs %>% select(deploy_id)
-plan("multisession", workers=4)
-locs_ess$ess <- foreach(i=1:nrow(locs_ess), .combine = 'c') %dofuture% {
-   cu_crw_ess(locs_fit$fit[[i]])
-}
-plan("sequential")
+save(locs_mariana, fit_mariana, pred_mariana, sample_mariana, mariana, prj_mariana, file="processed_data/pred_sample_mariana.RData")
 ```
 
-## Save results
-Now we can save the results for step 4, estimating UDs, etc. 
 ```{r}
-save(locs_data, locs_pred, locs_sample, locs_ess, locs_fit, land, vis_graph, file="processed_data/predict_samples.RData")
+save(locs_migration, fit_migration, pred_migration, prj_migration, file="processed_data/pred_sample_migration.RData")
 ```
+
+```{r}
+save(locs_post, fit_post, pred_post, sample_post, file="processed_data/pred_sample_post.RData")
+```
+
 

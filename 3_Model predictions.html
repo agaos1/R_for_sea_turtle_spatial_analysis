@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.4.553">
+<meta name="generator" content="quarto-1.4.555">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -96,145 +96,317 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<section id="read-in-saved-data-and-load-packages" class="level3">
-<h3 class="anchored" data-anchor-id="read-in-saved-data-and-load-packages">Read in saved data and load packages</h3>
+<section id="read-in-saved-data-and-load-packages" class="level2">
+<h2 class="anchored" data-anchor-id="read-in-saved-data-and-load-packages">Read in saved data and load packages</h2>
 <p>If you previously stopped after step 2 and want to restart, you have to read in the saved data and load all the packages.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(<span class="st">"processed_data/migr_det_data.RData"</span>)</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">invisible</span>(<span class="fu">lapply</span>(packages, library, <span class="at">character.only =</span> <span class="cn">TRUE</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(<span class="st">"processed_data/clean_data.RData"</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(<span class="st">"processed_data/stat_travel.RData"</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>packages <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">"packages.csv"</span>)<span class="sc">$</span>packages</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">invisible</span>(<span class="fu">lapply</span>(packages, library, <span class="at">character.only =</span> <span class="cn">TRUE</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
-<section id="fit-brownian-motion-model-to-make-predictions" class="level2">
-<h2 class="anchored" data-anchor-id="fit-brownian-motion-model-to-make-predictions">Fit Brownian motion model to make predictions</h2>
-<p>In this alaysis we are only interested in the nonmigratory segments so we will first remove those from the data.</p>
+<section id="segment-data-based-on-movement-type" class="level2">
+<h2 class="anchored" data-anchor-id="segment-data-based-on-movement-type">Segment data based on movement type</h2>
+<p>First we will join the bout data so we can separate stationary data from migration data.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>locs <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">rowwise</span>() <span class="sc">%&gt;%</span> <span class="fu">mutate</span>(</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> <span class="fu">list</span>(<span class="fu">filter</span>(data, migr_evt<span class="sc">==</span><span class="dv">0</span>))</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>locs <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">group_by</span>(deploy_id) <span class="sc">%&gt;%</span> <span class="fu">arrange</span>(datetime) <span class="sc">%&gt;%</span> <span class="fu">nest</span>() <span class="sc">%&gt;%</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">full_join</span>(stat_travel, <span class="at">by=</span><span class="st">"deploy_id"</span>)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>locs<span class="sc">$</span>data <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">i=</span><span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(locs)) <span class="sc">%do%</span> {</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cu_add_bouts</span>(locs<span class="sc">$</span>data[[i]], locs<span class="sc">$</span>bout_tbl[[i]]) </span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>locs <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">select</span>(<span class="sc">-</span>bout_tbl)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>locs <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">unnest</span>(<span class="at">cols=</span>data) <span class="sc">%&gt;%</span> <span class="fu">ungroup</span>() <span class="sc">%&gt;%</span> <span class="fu">st_as_sf</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Now we can fit a Brownian motion movement model to the data.</p>
+<p>Now we will separate the deployments into different bouts so that we are not simultaneously modeling pre and post-migration segments. There are some deployments with multiple bouts within the Mariana Islands, so we will first identify Mariana Island locations then filter the data. We can then easily filter the post-migration data based on <code>travel==0</code> and locations that are outside the Mariana buffer.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>constr <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">lower=</span><span class="fu">c</span>(<span class="fu">log</span>(<span class="fl">0.5</span>), <span class="fu">log</span>(<span class="fl">0.5</span>), <span class="dv">3</span>),</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">upper=</span><span class="fu">rep</span>(<span class="cn">Inf</span>,<span class="dv">3</span>)</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>N <span class="ot">&lt;-</span> <span class="fu">nrow</span>(locs)</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>locs_fit <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">select</span>(deploy_id)</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>locs_fit<span class="sc">$</span>fit <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">i=</span><span class="dv">1</span><span class="sc">:</span>N) <span class="sc">%do%</span> {</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cu_crw_argos</span>(locs<span class="sc">$</span>data[[i]], <span class="at">bm=</span><span class="cn">TRUE</span>, <span class="at">crw_control=</span><span class="fu">list</span>(<span class="at">constr=</span>constr))</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</section>
-<section id="check-that-model-was-fitted-to-all-animals" class="level2">
-<h2 class="anchored" data-anchor-id="check-that-model-was-fitted-to-all-animals">Check that model was fitted to all animals</h2>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sapply</span>(locs_fit<span class="sc">$</span>fit, class)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>mariana <span class="ot">&lt;-</span> <span class="fu">st_bbox</span>(<span class="fu">c</span>(<span class="at">xmin=</span><span class="dv">144</span>, <span class="at">xmax=</span><span class="dv">146</span>, <span class="at">ymin=</span><span class="dv">13</span>, <span class="at">ymax=</span><span class="dv">21</span>)) <span class="sc">%&gt;%</span> <span class="fu">st_as_sfc</span>() <span class="sc">%&gt;%</span> <span class="fu">st_as_sf</span>(<span class="at">crs=</span><span class="dv">4326</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">osm_coast</span>(<span class="at">keep=</span><span class="fl">0.5</span>) <span class="sc">%&gt;%</span> <span class="fu">st_transform</span>(<span class="fu">st_crs</span>(locs))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code> [1] "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit"
- [9] "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit"
-[17] "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit"
-[25] "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit"
-[33] "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit"
-[41] "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit" "crwFit"</code></pre>
+<pre><code>Reading layer `osm_coast' from data source 
+  `/Users/devin.johnson/.picmaps_data/osm_coast/osm_coast.gpkg' 
+  using driver `GPKG'
+Re-reading with feature count reset from 109 to 108
+Simple feature collection with 108 features and 0 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 144.6181 ymin: 13.23397 xmax: 145.8531 ymax: 20.55373
+Geodetic CRS:  WGS 84</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>mariana100 <span class="ot">&lt;-</span> <span class="fu">st_buffer</span>(mariana, <span class="dv">100000</span>) <span class="sc">%&gt;%</span> <span class="fu">st_union</span>() <span class="sc">%&gt;%</span> <span class="fu">st_as_sf</span>()</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>locs_mariana <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">filter</span>(travel<span class="sc">==</span><span class="dv">0</span>) <span class="sc">%&gt;%</span> <span class="fu">st_filter</span>(mariana100)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>locs_post <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">filter</span>(travel<span class="sc">==</span><span class="dv">0</span>) <span class="sc">%&gt;%</span> <span class="fu">st_filter</span>(mariana100, <span class="at">.predicate =</span> st_not_within)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>The migration trips can be identified by those bouts that are travel bouts and extend beyond the Mariana buffer</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>migration_bouts <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">filter</span>(travel<span class="sc">==</span><span class="dv">1</span>) <span class="sc">%&gt;%</span> <span class="fu">st_filter</span>(mariana100, <span class="at">.predicate =</span> st_not_within) <span class="sc">%&gt;%</span> </span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_drop_geometry</span>() <span class="sc">%&gt;%</span> <span class="fu">select</span>(deploy_id, bout) <span class="sc">%&gt;%</span> <span class="fu">distinct</span>()</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>locs_migration <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">filter</span>(travel<span class="sc">==</span><span class="dv">1</span>) <span class="sc">%&gt;%</span> <span class="fu">right_join</span>(migration_bouts, <span class="at">by=</span><span class="fu">c</span>(<span class="st">'deploy_id'</span>,<span class="st">'bout'</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Now we will re-project the data to something more appropriate for each type.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>locs_mariana <span class="ot">&lt;-</span> locs_mariana <span class="sc">%&gt;%</span> <span class="fu">st_as_sf</span>() </span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>prj_mariana <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(<span class="fu">suggest_crs</span>(locs_mariana)<span class="sc">$</span>crs_code[[<span class="dv">1</span>]])</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>locs_mariana <span class="ot">&lt;-</span> locs_mariana <span class="sc">%&gt;%</span> <span class="fu">st_transform</span>(prj_mariana) <span class="sc">%&gt;%</span>  <span class="fu">group_by</span>(deploy_id) <span class="sc">%&gt;%</span> <span class="fu">nest</span>() <span class="sc">%&gt;%</span> <span class="fu">arrange</span>(deploy_id)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>locs_migration <span class="ot">&lt;-</span> locs_migration <span class="sc">%&gt;%</span> <span class="fu">st_as_sf</span>() </span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>prj_migration <span class="ot">&lt;-</span>  <span class="fu">as.numeric</span>(<span class="fu">suggest_crs</span>(locs_migration)<span class="sc">$</span>crs_code[[<span class="dv">1</span>]])</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>locs_migration <span class="ot">&lt;-</span> locs_migration <span class="sc">%&gt;%</span> <span class="fu">st_transform</span>(prj_migration) <span class="sc">%&gt;%</span>  <span class="fu">group_by</span>(deploy_id) <span class="sc">%&gt;%</span> <span class="fu">nest</span>() <span class="sc">%&gt;%</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(deploy_id)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>For the post migration data we will project each one separately because they are in widely different areas geographically.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>locs_post <span class="ot">&lt;-</span> locs_post <span class="sc">%&gt;%</span> <span class="fu">st_as_sf</span>() <span class="sc">%&gt;%</span> <span class="fu">group_by</span>(deploy_id) <span class="sc">%&gt;%</span> <span class="fu">nest</span>() <span class="sc">%&gt;%</span> <span class="fu">arrange</span>(deploy_id)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>locs_post<span class="sc">$</span>prj <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">i=</span><span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(locs_post), <span class="at">.combine =</span> c) <span class="sc">%do%</span> {</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.numeric</span>(<span class="fu">suggest_crs</span>(locs_post<span class="sc">$</span>data[[i]])<span class="sc">$</span>crs_code[[<span class="dv">1</span>]])</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>locs_post<span class="sc">$</span>data <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">i=</span><span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(locs_post)) <span class="sc">%do%</span> {</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_transform</span>(locs_post<span class="sc">$</span>data[[i]], locs_post<span class="sc">$</span>prj[[i]])</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Now we can remove deployments that don’t have enough data to do anything with…</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>locs_mariana<span class="sc">$</span>n <span class="ot">&lt;-</span> <span class="fu">sapply</span>(locs_mariana<span class="sc">$</span>data, nrow)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>locs_mariana <span class="ot">&lt;-</span> locs_mariana <span class="sc">%&gt;%</span> <span class="fu">filter</span>(n<span class="sc">&gt;=</span><span class="dv">30</span>)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>locs_post<span class="sc">$</span>n <span class="ot">&lt;-</span> <span class="fu">sapply</span>(locs_post<span class="sc">$</span>data, nrow)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>locs_post <span class="ot">&lt;-</span> locs_post <span class="sc">%&gt;%</span> <span class="fu">filter</span>(n<span class="sc">&gt;=</span><span class="dv">30</span>)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>locs_migration<span class="sc">$</span>n <span class="ot">&lt;-</span> <span class="fu">sapply</span>(locs_migration<span class="sc">$</span>data, nrow)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>locs_migration<span class="ot">&lt;-</span> locs_migration <span class="sc">%&gt;%</span> <span class="fu">filter</span>(n<span class="sc">&gt;=</span><span class="dv">30</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="fit-movement-models" class="level2">
+<h2 class="anchored" data-anchor-id="fit-movement-models">Fit Movement models</h2>
+<p>Now we can fit movement models to the different data sets. Here we use Just a Brownian motion movement model</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="do">## Fixing location error to be equal to the nominal diagnostic data values</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>constr_bm <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">lower=</span><span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">0</span>, <span class="sc">-</span><span class="cn">Inf</span>),</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">upper=</span><span class="cn">Inf</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>fit_mariana <span class="ot">&lt;-</span> locs_mariana <span class="sc">%&gt;%</span> <span class="fu">select</span>(deploy_id)</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>fit_mariana<span class="sc">$</span>fit <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">i=</span><span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(fit_mariana)) <span class="sc">%do%</span> {</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cu_crw_argos</span>(locs_mariana<span class="sc">$</span>data[[i]], <span class="at">bm=</span><span class="cn">TRUE</span>, <span class="at">crw_control=</span><span class="fu">list</span>(<span class="at">constr=</span>constr_bm))</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="do">## Check for good fit</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a><span class="fu">all</span>(<span class="fu">sapply</span>(fit_mariana<span class="sc">$</span>fit, class)<span class="sc">==</span><span class="st">"crwFit"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] TRUE</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>fit_post <span class="ot">&lt;-</span> locs_post <span class="sc">%&gt;%</span> <span class="fu">select</span>(deploy_id)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>fit_post<span class="sc">$</span>fit <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">i=</span><span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(fit_post)) <span class="sc">%do%</span> {</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cu_crw_argos</span>(locs_post<span class="sc">$</span>data[[i]], <span class="at">bm=</span><span class="cn">TRUE</span>, <span class="at">crw_control=</span><span class="fu">list</span>(<span class="at">constr=</span>constr_bm))</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="do">## Check for good fit</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="fu">all</span>(<span class="fu">sapply</span>(fit_post<span class="sc">$</span>fit, class)<span class="sc">==</span><span class="st">"crwFit"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] TRUE</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>fit_migration <span class="ot">&lt;-</span> locs_migration <span class="sc">%&gt;%</span> <span class="fu">select</span>(deploy_id)</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>fit_migration<span class="sc">$</span>fit <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">i=</span><span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(fit_migration)) <span class="sc">%do%</span> {</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cu_crw_argos</span>(locs_migration<span class="sc">$</span>data[[i]], <span class="at">bm=</span><span class="cn">TRUE</span>, <span class="at">crw_control=</span><span class="fu">list</span>(<span class="at">constr=</span>constr_bm))</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="do">## Check for good fit</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="fu">all</span>(<span class="fu">sapply</span>(fit_migration<span class="sc">$</span>fit, class)<span class="sc">==</span><span class="st">"crwFit"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] TRUE</code></pre>
 </div>
 </div>
 <section id="optional-refit-any-models-that-did-not-work" class="level3">
 <h3 class="anchored" data-anchor-id="optional-refit-any-models-that-did-not-work">(Optional) Refit any models that did not work</h3>
-<p>The model seams to have fit for all animals (all values of the previous output are <code>"crwFit"</code>), however, if some did not fit satisfactorily, you can refit with the following code and it might work, e.g.&nbsp;for animal 3:</p>
+<p>The model seams to have fit for all animals (all values of the previous output are <code>"crwFit"</code>), however, if some did not fit satisfactorily, you can refit with the following code and it might work, e.g.&nbsp;for hypothetical animal 3:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># locs$fit[[3]] &lt;- cu_crw_argos(locs$data[[3]], bm=TRUE, constr=constr)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># fit[[3]] &lt;- cu_crw_argos(locs$data[[3]], bm=TRUE, constr=constr_bm)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Soetimes this works because there is a random process to get the starting values and sometimes bad values happen and if you refit it works better.</p>
+<p>Sometimes this works because there is a random process to get the starting values and sometimes bad values happen and if you refit it works better.</p>
 <p><u>ARG: I’m not really clear on what the code above actually does to “refit”</u></p>
 </section>
-<section id="make-location-predictions-and-posterior-samples-of-observations" class="level3">
-<h3 class="anchored" data-anchor-id="make-location-predictions-and-posterior-samples-of-observations">Make location predictions and posterior samples of observations</h3>
-<p>Here we will make predictions as well as draw simulated true locations conditional on the data observed.</p>
+</section>
+<section id="create-visibility-graph-for-rerouting" class="level2">
+<h2 class="anchored" data-anchor-id="create-visibility-graph-for-rerouting">Create visibility graph for rerouting</h2>
+<p>Here a visability graph is created for routing predicted or simulated track locations around land polygons. This is an optional step and you don’t need to do this unless you really want to map predictions or samples around land. Here we’ll do it for the Mariana Islands data. We can do it for the post migration data in the next code demo (3b)</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>locs_data <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">select</span>(deploy_id, data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>mariana <span class="ot">&lt;-</span> mariana <span class="sc">%&gt;%</span> <span class="fu">st_transform</span>(prj_mariana)</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>vis_graph <span class="ot">&lt;-</span> pathroutr<span class="sc">::</span><span class="fu">prt_visgraph</span>(mariana, <span class="at">centroids=</span><span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p><u>ARG: not really sure what these steps do</u></p>
-<p>We will use the <code>future</code> and <code>doFuture</code> packages to make use of parallel computing on multiple processors if desired. Use the following code to set up parallel computing. If you don’t want to use it, just skip it. The <code>workers</code> argument tells the code how many cores to use. You can use the package/function <code>parallel::detectCores()</code> if you want to find out how many are avaialble.</p>
+</section>
+<section id="make-location-predictions-and-posterior-samples-of-observations" class="level2">
+<h2 class="anchored" data-anchor-id="make-location-predictions-and-posterior-samples-of-observations">Make location predictions and posterior samples of observations</h2>
+<section id="mariana-islands-data-demo" class="level3">
+<h3 class="anchored" data-anchor-id="mariana-islands-data-demo">Mariana Islands data demo</h3>
+<p>Here we will make predictions as well as draw simulated true locations conditional on the data observed. We will use the <code>future</code> and <code>doFuture</code> packages to make use of parallel computing on multiple processors if desired. Use the following code to set up parallel computing. If you don’t want to use it, just skip it. The <code>workers</code> argument tells the code how many cores to use. You can use the package/function <code>parallel::detectCores()</code> if you want to find out how many are available. Can change the number of workers for each computer to ensure it doesn’t overload.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(<span class="st">"multisession"</span>, <span class="at">workers=</span><span class="dv">8</span>) <span class="co"># uncomment for parallel processing</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(<span class="st">"multisession"</span>, <span class="at">workers=</span><span class="dv">4</span>) <span class="co"># uncomment for parallel processing</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Now we can make predictions using <code>%dofuture%</code> loops which are parallel. In the predict call we are also using the <code>pathroutr</code> package to route tracks around land. We accomplish this by making predictions at 1 hr intervals and the observations times, then routing the track around land. After that we extract the predicted locations at observation times. In the simulation draws we are just drawing locations at the observed times to account for location error in future analyses.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>locs_pred <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">select</span>(deploy_id)</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>locs_pred<span class="sc">$</span>pred <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">i=</span><span class="dv">1</span><span class="sc">:</span>N, <span class="at">.options.future=</span><span class="fu">list</span>(<span class="at">packages=</span><span class="fu">c</span>(<span class="st">"sf"</span>,<span class="st">"dplyr"</span>,<span class="st">"crawlUtils"</span>), <span class="at">seed=</span><span class="cn">TRUE</span>)) <span class="sc">%dofuture%</span> {</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cu_crw_predict</span>(locs_fit<span class="sc">$</span>fit[[i]], <span class="st">"1 hour"</span>, land, vis_graph) <span class="sc">%&gt;%</span> <span class="fu">cu_extract_obst</span>(locs_data<span class="sc">$</span>data[[i]])</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>locs_sample <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">select</span>(deploy_id)</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>locs_sample<span class="sc">$</span>sample <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">i=</span><span class="dv">1</span><span class="sc">:</span>N, <span class="at">.options.future=</span><span class="fu">list</span>(<span class="at">packages=</span><span class="fu">c</span>(<span class="st">"sf"</span>,<span class="st">"dplyr"</span>,<span class="st">"crawlUtils"</span>), <span class="at">seed=</span><span class="cn">TRUE</span>)) <span class="sc">%dofuture%</span> {</span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cu_crw_sample</span>(locs_fit<span class="sc">$</span>fit[[i]], <span class="dv">20</span>)</span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="co"># You should always remove the parallel R instances when you are done</span></span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(<span class="st">"sequential"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>pred_mariana <span class="ot">&lt;-</span> locs_mariana <span class="sc">%&gt;%</span> <span class="fu">select</span>(deploy_id)</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>pred_mariana<span class="sc">$</span>pred <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">i=</span><span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(pred_mariana), </span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>                             <span class="at">.options.future=</span><span class="fu">list</span>(<span class="at">packages=</span><span class="fu">c</span>(<span class="st">"sf"</span>,<span class="st">"dplyr"</span>,<span class="st">"crawlUtils"</span>), <span class="at">seed=</span><span class="cn">TRUE</span>)) <span class="sc">%dofuture%</span> {</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cu_crw_predict</span>(fit_mariana<span class="sc">$</span>fit[[i]], <span class="st">"1 hour"</span>, mariana, vis_graph) <span class="sc">%&gt;%</span> <span class="fu">cu_extract_obst</span>(locs_mariana<span class="sc">$</span>data[[i]])</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>sample_mariana <span class="ot">&lt;-</span> locs_mariana <span class="sc">%&gt;%</span> <span class="fu">select</span>(deploy_id)</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>sample_mariana<span class="sc">$</span>sample <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">i=</span><span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(sample_mariana), </span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>                                 <span class="at">.options.future=</span><span class="fu">list</span>(<span class="at">packages=</span><span class="fu">c</span>(<span class="st">"sf"</span>,<span class="st">"dplyr"</span>,<span class="st">"crawlUtils"</span>), <span class="at">seed=</span><span class="cn">TRUE</span>)) <span class="sc">%dofuture%</span> {</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cu_crw_sample</span>(fit_mariana<span class="sc">$</span>fit[[i]], <span class="dv">20</span>)</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a><span class="co"># You should always remove the parallel R instances when you are done</span></span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(<span class="st">"sequential"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Now we will make predicted tracks for the migration data</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>pred_migration <span class="ot">&lt;-</span> locs_migration <span class="sc">%&gt;%</span> <span class="fu">select</span>(deploy_id)</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>pred_migration<span class="sc">$</span>pred <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">i=</span><span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(pred_migration), </span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>                             <span class="at">.options.future=</span><span class="fu">list</span>(<span class="at">packages=</span><span class="fu">c</span>(<span class="st">"sf"</span>,<span class="st">"dplyr"</span>,<span class="st">"crawlUtils"</span>))) <span class="sc">%do%</span> {</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>                               <span class="fu">cu_crw_predict</span>(fit_migration<span class="sc">$</span>fit[[i]]) </span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Now for the post migration data, which is a little tricky to get the coastline to map predicted locations around land. So we have to get a custom coastline for each data set.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>pred_post <span class="ot">&lt;-</span> locs_post <span class="sc">%&gt;%</span> <span class="fu">select</span>(deploy_id)</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>pred_post<span class="sc">$</span>pred <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">i=</span><span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(pred_post)) <span class="sc">%do%</span> {</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  coast <span class="ot">&lt;-</span> locs_post<span class="sc">$</span>data[[i]] <span class="sc">%&gt;%</span> <span class="fu">st_buffer</span>(<span class="dv">100000</span>) <span class="sc">%&gt;%</span> <span class="fu">st_union</span>() <span class="sc">%&gt;%</span> <span class="fu">st_as_sf</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">osm_coast</span>(<span class="at">keep=</span><span class="fl">0.5</span>)</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>  vis_graph <span class="ot">&lt;-</span> pathroutr<span class="sc">::</span><span class="fu">prt_visgraph</span>(coast, <span class="at">centroids=</span><span class="cn">TRUE</span>)</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cu_crw_predict</span>(fit_post<span class="sc">$</span>fit[[i]], <span class="st">"1 hour"</span>, coast, vis_graph) <span class="sc">%&gt;%</span> <span class="fu">cu_extract_obst</span>(locs_post<span class="sc">$</span>data[[i]])</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Reading layer `osm_coast' from data source 
+  `/Users/devin.johnson/.picmaps_data/osm_coast/osm_coast.gpkg' 
+  using driver `GPKG'
+Re-reading with feature count reset from 128 to 127
+Simple feature collection with 127 features and 0 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 157.2891 ymin: 5.795563 xmax: 158.3637 ymax: 7.085657
+Geodetic CRS:  WGS 84
+Reading layer `osm_coast' from data source 
+  `/Users/devin.johnson/.picmaps_data/osm_coast/osm_coast.gpkg' 
+  using driver `GPKG'
+Re-reading with feature count reset from 50 to 49
+Simple feature collection with 49 features and 0 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 121.8969 ymin: 5.554821 xmax: 126.605 ymax: 9.824749
+Geodetic CRS:  WGS 84
+Reading layer `osm_coast' from data source 
+  `/Users/devin.johnson/.picmaps_data/osm_coast/osm_coast.gpkg' 
+  using driver `GPKG'
+Re-reading with feature count reset from 25 to 24
+Simple feature collection with 24 features and 0 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 111.9152 ymin: 8.640344 xmax: 113.8598 ymax: 10.09957
+Geodetic CRS:  WGS 84
+Reading layer `osm_coast' from data source 
+  `/Users/devin.johnson/.picmaps_data/osm_coast/osm_coast.gpkg' 
+  using driver `GPKG'
+Re-reading with feature count reset from 457 to 455
+Simple feature collection with 455 features and 0 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 121.8969 ymin: 5.554821 xmax: 126.605 ymax: 11.56351
+Geodetic CRS:  WGS 84
+Reading layer `osm_coast' from data source 
+  `/Users/devin.johnson/.picmaps_data/osm_coast/osm_coast.gpkg' 
+  using driver `GPKG'
+Simple feature collection with 357 features and 0 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 118.7571 ymin: -5.70293 xmax: 125.2478 ymax: 1.751312
+Geodetic CRS:  WGS 84
+Reading layer `osm_coast' from data source 
+  `/Users/devin.johnson/.picmaps_data/osm_coast/osm_coast.gpkg' 
+  using driver `GPKG'
+Re-reading with feature count reset from 1608 to 1606
+Simple feature collection with 1606 features and 0 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 119.8127 ymin: 4.999454 xmax: 122.3279 ymax: 6.751374
+Geodetic CRS:  WGS 84
+Reading layer `osm_coast' from data source 
+  `/Users/devin.johnson/.picmaps_data/osm_coast/osm_coast.gpkg' 
+  using driver `GPKG'
+Re-reading with feature count reset from 382 to 381
+Simple feature collection with 381 features and 0 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 119.7498 ymin: 12.53287 xmax: 124.1984 ymax: 18.65129
+Geodetic CRS:  WGS 84
+Reading layer `osm_coast' from data source 
+  `/Users/devin.johnson/.picmaps_data/osm_coast/osm_coast.gpkg' 
+  using driver `GPKG'
+Re-reading with feature count reset from 588 to 587
+Simple feature collection with 587 features and 0 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 122.9326 ymin: 24.04562 xmax: 124.7284 ymax: 24.7622
+Geodetic CRS:  WGS 84
+Reading layer `osm_coast' from data source 
+  `/Users/devin.johnson/.picmaps_data/osm_coast/osm_coast.gpkg' 
+  using driver `GPKG'
+Re-reading with feature count reset from 123 to 122
+Simple feature collection with 122 features and 0 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 157.7679 ymin: 6.722886 xmax: 158.3637 ymax: 7.085657
+Geodetic CRS:  WGS 84
+Reading layer `osm_coast' from data source 
+  `/Users/devin.johnson/.picmaps_data/osm_coast/osm_coast.gpkg' 
+  using driver `GPKG'
+Re-reading with feature count reset from 110 to 109
+Simple feature collection with 109 features and 0 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 117.1752 ymin: 8.330196 xmax: 119.6979 ymax: 11.42542
+Geodetic CRS:  WGS 84
+Reading layer `osm_coast' from data source 
+  `/Users/devin.johnson/.picmaps_data/osm_coast/osm_coast.gpkg' 
+  using driver `GPKG'
+Re-reading with feature count reset from 152 to 151
+Simple feature collection with 151 features and 0 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 121.8969 ymin: 5.554821 xmax: 126.605 ymax: 9.824749
+Geodetic CRS:  WGS 84
+Reading layer `osm_coast' from data source 
+  `/Users/devin.johnson/.picmaps_data/osm_coast/osm_coast.gpkg' 
+  using driver `GPKG'
+Re-reading with feature count reset from 238 to 236
+Simple feature collection with 236 features and 0 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 120.2987 ymin: 10.40613 xmax: 123.1654 ymax: 13.53087
+Geodetic CRS:  WGS 84</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>sample_post <span class="ot">&lt;-</span> locs_post <span class="sc">%&gt;%</span> <span class="fu">select</span>(deploy_id)</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>sample_post<span class="sc">$</span>sample <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">i=</span><span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(sample_post)) <span class="sc">%do%</span> {</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cu_crw_sample</span>(fit_post<span class="sc">$</span>fit[[i]], <span class="dv">20</span>)</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 </section>
-<section id="plot-individual-tracks" class="level2">
-<h2 class="anchored" data-anchor-id="plot-individual-tracks">Plot individual tracks</h2>
-<section id="create-folder-for-track-plots" class="level3">
-<h3 class="anchored" data-anchor-id="create-folder-for-track-plots">Create folder for track plots</h3>
+<section id="save-data-for-future-steps" class="level2">
+<h2 class="anchored" data-anchor-id="save-data-for-future-steps">Save data for future steps</h2>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span>(<span class="sc">!</span><span class="fu">dir.exists</span>(<span class="st">"plots/Individual_tracks"</span>)){</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">dir.create</span>(<span class="st">"plots/Individual_tracks"</span>, <span class="at">recursive=</span><span class="cn">TRUE</span>)</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">save</span>(locs_mariana, fit_mariana, pred_mariana, sample_mariana, mariana, prj_mariana, <span class="at">file=</span><span class="st">"processed_data/pred_sample_mariana.RData"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p><u>ARG: not sure what these individual steps do:</u></p>
-<p><u>ARG: When plotting for the Drifter tags, the 2 code chunks below for plotting individual tracks was different. I am not clear on exactly what is done different, but I believe the output is actual maps with tracks of the drifters (perhaps that’s what LINESTRING does). We want to be able to to something similar so we can create maps with tracks for the turtles (or drifters), so I pasted said code into the chunk in the new Step 3_Visualizing tracks</u></p>
-<p>When plotting tracks, we first create a function to convert the point predictions to a line. Then convert the points to a line.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>pred_to_track <span class="ot">&lt;-</span> <span class="cf">function</span>(x){</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  x <span class="sc">|&gt;</span> <span class="fu">st_geometry</span>() <span class="sc">|&gt;</span> <span class="fu">st_combine</span>() <span class="sc">|&gt;</span> <span class="fu">st_cast</span>(<span class="st">"LINESTRING"</span>)</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>locs_pred <span class="ot">&lt;-</span> locs_pred <span class="sc">%&gt;%</span>  <span class="fu">rowwise</span>() <span class="sc">%&gt;%</span> </span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">track =</span> <span class="fu">list</span>(<span class="fu">pred_to_track</span>(pred))</span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">save</span>(locs_migration, fit_migration, pred_migration, prj_migration, <span class="at">file=</span><span class="st">"processed_data/pred_sample_migration.RData"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Now we can plot all the tracks for each PTT:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(locs_pred)){</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  ddd <span class="ot">&lt;-</span> locs_pred<span class="sc">$</span>track[[i]]</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  bbb <span class="ot">&lt;-</span> <span class="fu">st_bbox</span>(ddd) <span class="sc">%&gt;%</span>  <span class="fu">st_as_sfc</span>() <span class="sc">%&gt;%</span> <span class="fu">st_buffer</span>(<span class="dv">1000</span>) </span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  ppp <span class="ot">&lt;-</span> <span class="fu">ggplot</span>() <span class="sc">+</span></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">layer_spatial</span>(ddd, <span class="at">color=</span><span class="st">'turquoise2'</span>) <span class="sc">+</span></span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">layer_spatial</span>(bbb, <span class="at">fill=</span><span class="cn">NA</span>, <span class="at">size=</span><span class="dv">0</span>, <span class="at">color=</span><span class="cn">NA</span>) <span class="sc">+</span></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">annotation_spatial</span>(land, <span class="at">fill =</span> <span class="st">"gray30"</span>, <span class="at">size =</span> <span class="dv">0</span>, <span class="at">alpha=</span><span class="fl">0.1</span>) <span class="sc">+</span></span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    <span class="co">#scale_y_continuous(breaks=seq(-180,180,1)) +</span></span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    <span class="co">#scale_x_continuous(breaks=seq(-180,180,1)) +</span></span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme_bw</span>() <span class="sc">+</span> <span class="fu">theme</span>(<span class="at">panel.grid.major =</span> <span class="fu">element_blank</span>(), <span class="at">panel.grid.minor =</span> <span class="fu">element_blank</span>())<span class="sc">+</span></span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">"None"</span>) <span class="sc">+</span></span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ggtitle</span>(<span class="fu">paste0</span>(<span class="st">"Animal PTT: "</span>, locs_pred<span class="sc">$</span>deploy_id[[i]]))</span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggsave</span>(ppp, <span class="at">file=</span><span class="fu">paste0</span>(<span class="st">"plots/Individual_tracks/"</span>,locs_pred<span class="sc">$</span>deploy_id[[i]],<span class="st">".png"</span>), <span class="at">width=</span><span class="fl">6.5</span>, <span class="at">height=</span><span class="dv">4</span>)</span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</section>
-</section>
-<section id="estimating-uds" class="level2">
-<h2 class="anchored" data-anchor-id="estimating-uds">Estimating UDs</h2>
-<p>Now we will begin to estimate individual UDs using the multiple imputation method to account for location error. See <a href="https://link.springer.com/article/10.1007/s13253-017-0294-5">Scharf et al.&nbsp;(2017)</a>. But first we will obtain the effective sample size of the data. The ESS estimates about how many independent locations are in the data after accounting for autocorrelation. This step can also be a little time consuming, so we also can run this in parallel</p>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>locs_ess <span class="ot">&lt;-</span> locs <span class="sc">%&gt;%</span> <span class="fu">select</span>(deploy_id)</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(<span class="st">"multisession"</span>, <span class="at">workers=</span><span class="dv">8</span>)</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>locs_ess<span class="sc">$</span>ess <span class="ot">&lt;-</span> <span class="fu">foreach</span>(<span class="at">i=</span><span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(locs_ess), <span class="at">.combine =</span> <span class="st">'c'</span>) <span class="sc">%dofuture%</span> {</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>   <span class="fu">cu_crw_ess</span>(locs_fit<span class="sc">$</span>fit[[i]])</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(<span class="st">"sequential"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</section>
-<section id="save-results" class="level2">
-<h2 class="anchored" data-anchor-id="save-results">Save results</h2>
-<p>Now we can save the results for step 4, estimating UDs, etc.</p>
-<div class="cell">
-<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">save</span>(locs_data, locs_pred, locs_sample, locs_ess, locs_fit, land, vis_graph, packages, <span class="at">file=</span><span class="st">"processed_data/predict_samples.RData"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">save</span>(locs_post, fit_post, pred_post, sample_post, <span class="at">file=</span><span class="st">"processed_data/pred_sample_post.RData"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 
