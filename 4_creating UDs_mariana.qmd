@@ -10,7 +10,7 @@ editor_options:
 If you previously stopped after step 3 and want to restart, you have to read in the saved data and load all the packages.
 
 ```{r}
-load("processed_data/predict_samples.RData")
+load("processed_data/pred_sample_mariana.RData")
 packages <- read.csv("packages.csv")$packages
 invisible(lapply(packages, library, character.only = TRUE))
 ```
@@ -30,10 +30,16 @@ ud_area <- function(x){
 Currently, the only grouping variable for the location data `deploy_id`. In order to extract data in each deployment we will unnest the data and regroup with the other desired variables. 
 ```{r}
 #| output: false
-locs_data <- unnest(locs_data, cols=data) %>% 
+locs_mariana <- unnest(locs_mariana, cols=data) %>% 
   group_by(
-    deploy_id, phase, species, scl, general_location, site_location, release_location, sex
-  ) %>% nest()
+    deploy_id, species, scl, general_location, site_location, release_location, sex
+  ) %>% nest() %>% ungroup()
+```
+
+Next we will calculate the effective sample size for each data set. This step attempts to mediate the autocorrelation when estimating the UDs.
+```{r}
+ess_mariana <- locs_mariana %>% select(deploy_id)
+ess_mariana$ess <- sapply(fit_mariana$fit, cu_crw_ess)
 ```
 
 
@@ -41,78 +47,46 @@ locs_data <- unnest(locs_data, cols=data) %>%
 
 [ARG: I'm not clear if all the code below needs to be in a single chunk or if it can be broken up.]{.underline}
 
-Next we create a dataframe to store the indididual UDs in an organized way and create directories to store the plots.
+Next we create a dataframe to store the information about the individual UDs in an organized way and create directories to store the data and plots.
 ```{r}
-ud_df <- full_join(locs_data, locs_ess, by='deploy_id') 
+ud_df <- full_join(locs_mariana, ess_mariana, by='deploy_id') 
 
 dir.create("ud_files/ud_full", recursive=TRUE)
-dir.create("ud_files/ud_95", recursive=TRUE)
-dir.create("ud_files/ud_50", recursive=TRUE)
-dir.create("plots/individual_uds/hpd_ud_50", recursive=TRUE)
-dir.create("plots/individual_uds/hpd_ud_95", recursive=TRUE)
+dir.create("plots/individual_uds", recursive=TRUE)
 ```
 
 Now we calculate individual UDs. This can also take a while, so we can do it in parallel
+
 ```{r}
 plan("multisession", workers=4)
 
-ud_out <- foreach(i=1:nrow(locs_sample), .options.future=list(seed=TRUE), .errorhandling="pass", .combine="rbind") %dofuture% {
+ud_out <- foreach(i=1:4, .options.future=list(seed=TRUE), .errorhandling="pass", .combine="bind_rows") %dofuture% {
   
   # Create indiv. grids and UDs for animal i
-  bb <- st_bbox_list(locs_sample$sample[[i]]) |> st_as_sfc() |> st_buffer(2000) |> 
+  idata <- locs_mariana$data[[i]]
+  xy <- st_coordinates(idata)
+  bw <- sqrt(diag(var(xy)))
+  
+  sig <- var(xy)
+  bb <- st_bbox_list(sample_mariana$sample[[i]]) %>%  st_as_sfc() |> st_buffer(2000) %>%  
     st_bbox()
-  grd <- cu_ud_grid(bb, land, cellsize=100)
-  ud <- cu_kde_ud_sample(locs_sample$sample[[i]], grid=grd, ess=locs_ess$ess[[i]])
+  # grd <- cu_ud_grid(bb, cellsize=100)
+  grd <- rast(st_as_sfc(bb) %>% vect(), res=50)
+  ud <- cu_sf_kde(sample_mariana$sample[[i]][[1]], ref=grd)
+  
+  # ud <- cu_kde_ud_sample(sample_mariana$sample[[i]], grid=grd, ess=ess_mariana$ess[[i]])
   
   # Save UD data and create 95% and 50% UD quantiles
-  ud_full_path <- paste0("ud_files/ud_full/",locs_sample$deploy_id[[i]],".rds")
+  ud_full_path <- paste0("ud_files/",sample_mariana$deploy_id[[i]],".rds")
   saveRDS(ud, file=ud_full_path)
   
   # cnt <- cu_ud_contour(ud)
   
-  ud95 <- cu_hud(ud, 0.95)
-  #ud_df$area95[[i]] <- ud_area(ud95)
-  ud_95_path <- paste0("ud_files/ud_95/",locs_sample$deploy_id[[i]],".rds")
-  saveRDS(ud95, file=ud_95_path)
+  ud_cont <- ud %>% cu_ud_contour(c(0.5,0.95)) %>% st_difference(st_union(mariana))
+  ud_cont$area <- st_area(ud_cont) %>% set_units("km^2")
   
-  ud50 <- cu_hud(ud, 0.50)
-  #ud_df$area50[[i]] <- ud_area(ud50)
-  ud_50_path <- paste0("ud_files/ud_50/",locs_sample$deploy_id[[i]],".rds")
-  saveRDS(ud50, file=ud_50_path)
-  
-  
-  # Plots
-  bbb <- st_buffer(ud95, 1000) |> st_bbox() |> st_as_sfc()
-  ppp <- ggplot() +
-    layer_spatial(ud95, aes(fill=ud), size=0, color=NA) +
-    layer_spatial(bbb, fill=NA, size=0, color=NA) +
-    annotation_spatial(land, fill = "gray30", size = 0) +
-    # scale_y_continuous(breaks=seq(-180,180,5)) +
-    # scale_x_continuous(breaks=seq(-180,180,10)) +
-    scale_fill_distiller(name= "UD", palette = "Reds", direction = 1) +
-    annotation_spatial(locs_data$data[[i]], color="brown4",alpha=1, cex=0.15) +
-    theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
-    theme(legend.position = "None") +
-    ggtitle(paste0("Animal PTT: ", locs_sample$deploy_id[[i]]))
-  ggsave(ppp, file=paste0("plots/individual_uds/hpd_ud_95/",locs_sample$deploy_id[[i]],".png"), width=6.5, height=4)
-  
-  # bbb <- st_buffer(ud50, 1000) |> st_bbox() |> st_as_sfc()
-  ppp <- ggplot() +
-    layer_spatial(ud50, aes(fill=ud), size=0, color=NA) +
-    layer_spatial(bbb, fill=NA, size=0, color=NA) +
-    annotation_spatial(land, fill = "gray30", size = 0) +
-    # scale_y_continuous(breaks=seq(-180,180,5)) +
-    # scale_x_continuous(breaks=seq(-180,180,10)) +
-    scale_fill_distiller(name= "UD", palette = "Reds", direction = 1) +
-    annotation_spatial(locs_data$data[[i]], color="brown4",alpha=1, cex=0.15) +
-    theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
-    theme(legend.position = "None") +
-    ggtitle(paste0("Animal PTT: ", locs_sample$deploy_id[[i]]))
-  ggsave(ppp, file=paste0("plots/individual_uds/hpd_ud_50/",locs_sample$deploy_id[[i]],".png"), width=6.5, height=4)
-  
-  data.frame(
-    deploy_id=locs_sample$deploy_id[[i]], area95 = ud_area(ud95), area50 = ud_area(ud50),
-    ud_full=ud_full_path, ud_95=ud_95_path, ud_50=ud_50_path
+  tibble(
+    deploy_id=sample_mariana$deploy_id[[i]], ud_full=ud_full_path, contours=list(ud_cont)
   )
 }  
 
