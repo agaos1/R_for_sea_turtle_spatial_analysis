@@ -28,7 +28,7 @@ The following chunk of code will check for the necessary packages (listed in `pa
 
 ```{r, output=FALSE}
 # Package names
-packages <- c("tidyverse","mapview","ggspatial","trip","crsuggest","units",
+packages <- c("trip","tidyverse","mapview","ggspatial","crsuggest","units",
               "plotly","sf","janitor","lubridate","crsuggest","doFuture","picMaps","rosm", "terra")
 
 # R package repositories
@@ -43,10 +43,12 @@ repos <- c(
 installed_packages <- packages %in% rownames(installed.packages())
 install.packages(c(packages[!installed_packages], "crawlUtils"), 
                  repos=repos, dependencies=TRUE)
-packages <- c(packages,"crawlUtils")
+packages <- c(packages[-1],"crawlUtils")
 
 # Packages loading
 invisible(lapply(packages, library, character.only = TRUE))
+require("trip")
+
 write_csv(data.frame(packages=packages), "packages.csv")
 ```
 
@@ -152,8 +154,8 @@ See [Freitas et al. (2008)](https://onlinelibrary.wiley.com/doi/full/10.1111/j.1
 
 ```{r}
 locs$keep <-locs %>%
-  trip(c("datetime","deploy_id"),correct_all=FALSE) %>%
-  sda(smax=7.2) 
+  trip::trip(c("datetime","deploy_id"),correct_all=FALSE) %>%
+  trip::sda(smax=7.2) 
 
 locs <- filter(locs, keep)
 ```

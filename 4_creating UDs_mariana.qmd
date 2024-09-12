@@ -38,7 +38,7 @@ locs_mariana <- unnest(locs_mariana, cols=data) %>%
 
 Next we will calculate the effective sample size for each data set. This step attempts to mediate the autocorrelation when estimating the UDs.
 ```{r}
-ess_mariana <- locs_mariana %>% select(deploy_id)
+ess_mariana <- locs_mariana %>% dplyr::select(deploy_id)
 ess_mariana$ess <- sapply(fit_mariana$fit, cu_crw_ess)
 ```
 
@@ -49,57 +49,48 @@ ess_mariana$ess <- sapply(fit_mariana$fit, cu_crw_ess)
 
 Next we create a dataframe to store the information about the individual UDs in an organized way and create directories to store the data and plots.
 ```{r}
-ud_df <- full_join(locs_mariana, ess_mariana, by='deploy_id') 
+ud_df <- full_join(locs_mariana, ess_mariana, by='deploy_id') %>% dplyr::select(-data) 
 
-dir.create("ud_files/ud_full", recursive=TRUE)
-dir.create("plots/individual_uds", recursive=TRUE)
+dir.create("ud_files/mariana", recursive=TRUE)
+dir.create("plots/individual_uds/mariana", recursive=TRUE)
 ```
 
 Now we calculate individual UDs. This can also take a while, so we can do it in parallel
 
 ```{r}
-plan("multisession", workers=4)
+# plan("multisession", workers=4)
 
-ud_out <- foreach(i=1:4, .options.future=list(seed=TRUE), .errorhandling="pass", .combine="bind_rows") %dofuture% {
-  
+ud_out <- foreach(i=1:nrow(pred_mariana), 
+                  .errorhandling="pass", .combine="bind_rows") %do% {
   # Create indiv. grids and UDs for animal i
-  idata <- locs_mariana$data[[i]]
-  xy <- st_coordinates(idata)
-  bw <- sqrt(diag(var(xy)))
-  
-  sig <- var(xy)
-  bb <- st_bbox_list(sample_mariana$sample[[i]]) %>%  st_as_sfc() |> st_buffer(2000) %>%  
-    st_bbox()
+  # ipred <- cu_crw_predict(fit_mariana$fit[[i]])
+  ipred <- pred_mariana$pred[[i]]
+  bb <- st_bbox(ipred) %>%  st_as_sfc() |> st_buffer(5000) 
   # grd <- cu_ud_grid(bb, cellsize=100)
-  grd <- rast(st_as_sfc(bb) %>% vect(), res=50)
-  ud <- cu_sf_kde(sample_mariana$sample[[i]][[1]], ref=grd)
-  
-  # ud <- cu_kde_ud_sample(sample_mariana$sample[[i]], grid=grd, ess=ess_mariana$ess[[i]])
-  
+  grd <- rast(vect(bb), res=50) %>%  terra::rasterize(vect(mariana), ., cover=TRUE, background=0)
+  grd <- ifel(grd>0.99, NA, 1)
+  bw <- min(bw_silver(st_coordinates(ipred), ess=ess_mariana$ess[[i]]))
+  ud <- cu_sf_kde(x=ipred, ref=grd, bw=bw, mask=TRUE)
   # Save UD data and create 95% and 50% UD quantiles
-  ud_full_path <- paste0("ud_files/",sample_mariana$deploy_id[[i]],".rds")
-  saveRDS(ud, file=ud_full_path)
-  
-  # cnt <- cu_ud_contour(ud)
-  
-  ud_cont <- ud %>% cu_ud_contour(c(0.5,0.95)) %>% st_difference(st_union(mariana))
-  ud_cont$area <- st_area(ud_cont) %>% set_units("km^2")
+  cont <- cu_ud_contour(ud, c(0.9, .5))   
+  cont$area <- st_area(cont) %>% set_units("km^2")
+  ud_path <- paste0("ud_files/mariana/",pred_mariana$deploy_id[[i]],".rds")
+  ud <- terra::wrap(ud)
+  saveRDS(ud, file=ud_path)
   
   tibble(
-    deploy_id=sample_mariana$deploy_id[[i]], ud_full=ud_full_path, contours=list(ud_cont)
+    deploy_id=pred_mariana$deploy_id[[i]], ud_full=ud_path, contours=list(cont)
   )
 }  
 
-plan("sequential")
-
-ud_df <- full_join(ud_df, ud_out, by="deploy_id")
+ud_out <- ud_out %>% unnest(cols = contours)
+ud_df <- full_join(ud_df, ud_out, by="deploy_id")%>% st_as_sf()
 ```
 
 ### Save UD areas (km2) to external files
 
 ```{r}
-ud_df %>% select(-data) %>% write_csv("processed_data/ud_df_nodata.csv")
-
+ud_df %>% st_drop_geometry() %>% write_csv("processed_data/ud_df.csv")
 ```
 
 ### Save UDs to external files
@@ -107,5 +98,5 @@ ud_df %>% select(-data) %>% write_csv("processed_data/ud_df_nodata.csv")
 Change the end of the file name as appropriate
 
 ```{r}
-save(ud_df, land, packages, file="processed_data/ud_df.RData")
+save(ud_df, mariana, file="processed_data/ud_df.RData")
 ```

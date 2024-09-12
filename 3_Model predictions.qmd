@@ -160,13 +160,13 @@ Now we can make predictions using `%dofuture%` loops which are parallel. In the 
 
 ```{r}
 pred_mariana <- locs_mariana %>% select(deploy_id)
-pred_mariana$pred <- foreach(i=1:nrow(pred_mariana), 
+pred_mariana$pred <- foreach(i=1:nrow(pred_mariana),
                              .options.future=list(packages=c("sf","dplyr","crawlUtils"), seed=TRUE)) %dofuture% {
   cu_crw_predict(fit_mariana$fit[[i]], "1 hour", mariana, vis_graph) %>% cu_extract_obst(locs_mariana$data[[i]])
 }
 
 sample_mariana <- locs_mariana %>% select(deploy_id)
-sample_mariana$sample <- foreach(i=1:nrow(sample_mariana), 
+sample_mariana$sample <- foreach(i=1:nrow(sample_mariana),
                                  .options.future=list(packages=c("sf","dplyr","crawlUtils"), seed=TRUE)) %dofuture% {
   cu_crw_sample(fit_mariana$fit[[i]], 20)
 }
@@ -178,9 +178,9 @@ plan("sequential")
 Now we will make predicted tracks for the migration data
 ```{r}
 pred_migration <- locs_migration %>% select(deploy_id)
-pred_migration$pred <- foreach(i=1:nrow(pred_migration), 
-                             .options.future=list(packages=c("sf","dplyr","crawlUtils"))) %do% {
-                               cu_crw_predict(fit_migration$fit[[i]]) 
+pred_migration$pred <- foreach(i=1:nrow(pred_migration),
+                               .options.future=list(packages=c("sf","dplyr","crawlUtils"))) %do% {
+                               cu_crw_predict(fit_migration$fit[[i]])
 }
 ```
 
@@ -189,7 +189,7 @@ Now for the post migration data, which is a little tricky to get the coastline t
 ```{r}
 pred_post <- locs_post %>% select(deploy_id)
 pred_post$pred <- foreach(i=1:nrow(pred_post)) %do% {
-  coast <- locs_post$data[[i]] %>% st_buffer(100000) %>% st_union() %>% st_as_sf() %>% 
+  coast <- locs_post$data[[i]] %>% st_buffer(100000) %>% st_union() %>% st_as_sf() %>%
     osm_coast(keep=0.5)
   vis_graph <- pathroutr::prt_visgraph(coast, centroids=TRUE)
   cu_crw_predict(fit_post$fit[[i]], "1 hour", coast, vis_graph) %>% cu_extract_obst(locs_post$data[[i]])

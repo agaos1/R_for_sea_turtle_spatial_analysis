@@ -98,7 +98,7 @@ locs$data[[10]] <- locs$data[[10]] %>% filter(datetime<=as.Date("2017-10-11"))
 ## Animal 7
 stat_travel$bout_tbl[[7]] <- stat_travel$bout_tbl[[7]] %>% 
   add_row(travel=0, bout=1, start=as.Date("2017-09-01"), avg_speed=NA, .before=1)
-stat_travel$bout_tbl[[7]]$start[2] <-as.Date("2017-09-12")
+stat_travel$bout_tbl[[7]]$start[2] <-as.Date("2017-09-16")
 stat_travel$bout_tbl[[7]]$bout[2:3] <- 2:3
 ## Animal 2
 stat_travel$bout_tbl[[2]] <- stat_travel$bout_tbl[[2]] %>% 

@@ -116,8 +116,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The following chunk of code will check for the necessary packages (listed in <code>packages</code>) and if they are not installed on the users computer, will install them. They will then be loaded into the session. The <code>crawlUtils</code> package will be installed for every new session because it is under development.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Package names</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>packages <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"tidyverse"</span>,<span class="st">"mapview"</span>,<span class="st">"ggspatial"</span>,<span class="st">"trip"</span>,<span class="st">"crsuggest"</span>,<span class="st">"units"</span>,</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>              <span class="st">"plotly"</span>,<span class="st">"sf"</span>,<span class="st">"janitor"</span>,<span class="st">"lubridate"</span>,<span class="st">"crsuggest"</span>,<span class="st">"doFuture"</span>,<span class="st">"picMaps"</span>,<span class="st">"rosm"</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>packages <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"trip"</span>,<span class="st">"tidyverse"</span>,<span class="st">"mapview"</span>,<span class="st">"ggspatial"</span>,<span class="st">"crsuggest"</span>,<span class="st">"units"</span>,</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>              <span class="st">"plotly"</span>,<span class="st">"sf"</span>,<span class="st">"janitor"</span>,<span class="st">"lubridate"</span>,<span class="st">"crsuggest"</span>,<span class="st">"doFuture"</span>,<span class="st">"picMaps"</span>,<span class="st">"rosm"</span>, <span class="st">"terra"</span>)</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co"># R package repositories</span></span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>repos <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
@@ -131,11 +131,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>installed_packages <span class="ot">&lt;-</span> packages <span class="sc">%in%</span> <span class="fu">rownames</span>(<span class="fu">installed.packages</span>())</span>
 <span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="fu">c</span>(packages[<span class="sc">!</span>installed_packages], <span class="st">"crawlUtils"</span>), </span>
 <span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>                 <span class="at">repos=</span>repos, <span class="at">dependencies=</span><span class="cn">TRUE</span>)</span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>packages <span class="ot">&lt;-</span> <span class="fu">c</span>(packages,<span class="st">"crawlUtils"</span>)</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>packages <span class="ot">&lt;-</span> <span class="fu">c</span>(packages[<span class="sc">-</span><span class="dv">1</span>],<span class="st">"crawlUtils"</span>)</span>
 <span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Packages loading</span></span>
 <span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="fu">invisible</span>(<span class="fu">lapply</span>(packages, library, <span class="at">character.only =</span> <span class="cn">TRUE</span>))</span>
-<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="fu">write_csv</span>(<span class="fu">data.frame</span>(<span class="at">packages=</span>packages), <span class="st">"packages.csv"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="fu">require</span>(<span class="st">"trip"</span>)</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="fu">write_csv</span>(<span class="fu">data.frame</span>(<span class="at">packages=</span>packages), <span class="st">"packages.csv"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="read-in-telemetry-data-filter-locations-by-argos-location-class-and-remove-grossly-inaccurate-positions" class="level3">
@@ -226,8 +228,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>See <a href="https://onlinelibrary.wiley.com/doi/full/10.1111/j.1748-7692.2007.00180.x?casa_token=AP2D16sj4I4AAAAA%3AEXLY23QX0WdBHr6xzU2IEO603U0beNMPDndJn-VXAYB4sm3QWkUvHTJbWqdJv0K7oD6QSolnM78eSgczI2Q">Freitas et al.&nbsp;(2008)</a> and <code>?trip::sda</code>.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>locs<span class="sc">$</span>keep <span class="ot">&lt;-</span>locs <span class="sc">%&gt;%</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">trip</span>(<span class="fu">c</span>(<span class="st">"datetime"</span>,<span class="st">"deploy_id"</span>),<span class="at">correct_all=</span><span class="cn">FALSE</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sda</span>(<span class="at">smax=</span><span class="fl">7.2</span>) </span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  trip<span class="sc">::</span><span class="fu">trip</span>(<span class="fu">c</span>(<span class="st">"datetime"</span>,<span class="st">"deploy_id"</span>),<span class="at">correct_all=</span><span class="cn">FALSE</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  trip<span class="sc">::</span><span class="fu">sda</span>(<span class="at">smax=</span><span class="fl">7.2</span>) </span>
 <span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>locs <span class="ot">&lt;-</span> <span class="fu">filter</span>(locs, keep)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
