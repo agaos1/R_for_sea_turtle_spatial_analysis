@@ -72,7 +72,7 @@ ud_out <- foreach(i=1:nrow(pred_mariana),
   bw <- min(bw_silver(st_coordinates(ipred), ess=ess_mariana$ess[[i]]))
   ud <- cu_sf_kde(x=ipred, ref=grd, bw=bw, mask=TRUE)
   # Save UD data and create 95% and 50% UD quantiles
-  cont <- cu_ud_contour(ud, c(0.9, .5))   
+  cont <- cu_ud_contour(ud, c(0.95, .5))   
   cont$area <- st_area(cont) %>% set_units("km^2")
   ud_path <- paste0("ud_files/mariana/",pred_mariana$deploy_id[[i]],".rds")
   ud <- terra::wrap(ud)

@@ -1,0 +1,109 @@
+---
+title: "B_Plotting individual UDs"
+format: html
+editor: source
+editor_options: 
+  chunk_output_type: console
+---
+
+[ARG: Devin developed the code for Group UDs prior to the code for individual UD, thus the latter actually depends on steps in the former. We don't want this...we want to be able to calculate individual UDs (hence why I have made this step 4 here) and the user can calculate group UDs if they want (using step 5).]{.underline}
+
+### Read in saved data and load packages
+If you previously stopped after step 2 and want to restart, you have to read in the saved data and load all the packages.
+
+```{r}
+#| output: false
+load("processed_data/ud_df.RData")
+packages <- read.csv("packages.csv")$packages
+invisible(lapply(packages, library, character.only = TRUE))
+```
+
+Read in the metadata again. If you want you could just save from the beginning.
+
+```{r}
+#| output: false
+
+load("processed_data/pred_sample_mariana.RData")
+load("processed_data/ud_df.RData")
+meta_data <- read_csv("raw_data/Metadata.csv") %>% 
+  clean_names() %>% rename(deploy_id = ptt_unique_id)
+
+meta_data <- meta_data %>% filter(deploy_id %in% ud_df$deploy_id)
+```
+
+### Capture location spatial points
+
+[ARG: The code in the first chunk below is only in the UD plots for all individual turtles being processed at the same, it isn't in the later code where we could calculate UD for each individual turtle, or the Group UD code.]{.underline}
+
+```{r}
+capt_loc <- meta_data %>% select(deploy_id, capture_latitude, capture_longitude) %>% 
+  rename(latitude=capture_latitude, longitude=capture_longitude)
+```
+
+
+### Create output folder
+
+Adjust names of files as necessary
+
+```{r}
+if(!dir.exists("plots/individual_uds/mariana")){dir.create("plots/individual_uds/mariana")}
+
+```
+
+### Get Bathymetry maps for plotting 
+
+```{r}
+library(rosm)
+locs_bbox <- st_expand(st_bbox(mariana), 0.2) %>% st_as_sfc()
+esri_ocean <- source_from_url_format(
+  url_format = paste0('https://services.arcgisonline.com/arcgis/rest/services/',
+                      'Ocean/World_Ocean_Base/MapServer/tile/${z}/${y}/${x}.jpeg'),
+  attribution = "")
+
+esri_tiles <- osm.raster(sf::as_Spatial(locs_bbox),
+                         type = esri_ocean, zoomin = 2,
+                         progress = "none", crop = FALSE)
+esri_tiles <- terra::rast(esri_tiles)
+terra::crs(esri_tiles) <- "EPSG:6637"
+```
+
+### Indicate tag(s) to be processed for UDs
+
+Can calculate UDs for all tags in a data set or for individuals tags. If you want to plot a specific PTT, just use that number for the `PTT <- ...` in the loop below and don't run the whole loop just the code within the loop.   
+
+[To calculate the UDs of all tags in a data set AT ONCE, use the code in this chunk (skip to next chunk for individual tags):]{.underline}
+
+```{r}
+ptt <- unique(ud_df$deploy_id)
+for(i in 1:length(ptt)){
+  ud_single_df <- ud_df %>% filter(deploy_id==ptt[i])
+  ## Capture locs
+  # capt_pts <- capt_loc %>% filter(deploy_id==ptt[i])
+  # if(!is.na(capt_pts$latitude[1])){
+  #   capt_pts <- st_as_sf(capt_pts, coords = c("longitude","latitude"), crs=4326) %>% st_transform(st_crs(ud_single_df))
+  # }
+  pts <- locs_mariana %>% filter(deploy_id==ptt[i]) %>% {.$data[[1]]}
+  bbb <- st_buffer(ud_single_df, 1500) |> st_bbox() |> st_as_sfc()
+  
+  ###
+  ### See http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf
+  ### if you want to change homerange colors and 
+  ### https://colorbrewer2.org/ for the PTT color palette
+  ###
+  ppp <- ggplot() +
+    # annotation_spatial(esri_tiles) +
+    layer_spatial(bbb, fill=NA, size=0, color=NA) +
+    annotation_spatial(pts, size=0.25, alpha=0.5, color="black") + 
+    layer_spatial(ud_single_df[1,], color="royalblue", lwd=0.25, fill="royalblue", alpha=0.3) +      # 95% quantile polygon
+    layer_spatial(ud_single_df[2,], color="firebrick2", lwd=0.25, fill="firebrick2", alpha=0.3) +    # 50% quantile polygon
+    annotation_spatial(mariana, fill = "gray50", size = 0) + # land
+    theme_bw() + theme(panel.grid.major = element_blank(), 
+                       panel.grid.minor = element_blank(),
+                       axis.ticks=element_blank(), axis.text=element_blank()) +
+    annotation_scale()
+  # if(inherits(capt_pts, "sf")) ppp <- ppp + layer_spatial(capt_pts, size=2, alpha=1, color="green", shape=3)
+  
+  ggsave(ppp, file=paste0("plots/individual_uds/mariana/", ptt[i],"_contour.png"), width=6.5, height=4)
+}
+```
+
