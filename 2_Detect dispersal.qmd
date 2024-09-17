@@ -9,6 +9,7 @@ editor_options:
 ## Detect dispersal from tagging release location and separating locations by date or movement phase
 
 ### Read in save data
+
 If you previously stopped after step 2 and want to restart, you have to read in the saved data and load all the packages.
 
 ```{r}
@@ -23,7 +24,6 @@ The remainder of the functions only work on data sets of single deployments. So 
 ```{r}
 locs <- locs %>% group_by(deploy_id) %>% nest()
 ```
-
 
 ### Create table of migration start and stop dates
 
@@ -46,30 +46,48 @@ dispersal_plt <- foreach(i=1:nrow(stat_travel)) %do% {
 }
 ```
 
-
 ### Adjust bout tables
 
 The `cu_bout_det_mbc()` function does a fairly decent job at detecting migration transitions. However, it will often be mistaken. So the best thing to do is look at all the plots,
+
 ```{r}
 #| output: false
 dispersal_plt
 ```
-then we can adjust them as necessary by hand. There are two ways to do this. (1) you can write out the data to a `.csv` file and perform edits there
+
+To examine individual dispersal plots, change number as needed:
+
+```{r}
+#| output: false
+dispersal_plt[5]
+```
+
+Then we can adjust them as necessary by hand. There are two ways to do this. (1) you can write out the data to a `.csv` file and perform edits there.
+
 ```{r}
 stat_travel %>% unnest(cols=bout_tbl) %>% mutate(avg_speed = round(avg_speed,2)) %>% write_csv("processed_data/stat_travel.csv")
 ```
 
+[ARG: Currently we we cannot adjust using the CSV method, only the manual option below. However, it could be set up in the future. Also, the CSV is good for reference.]{.underline}
+
 Or, we can manually adjust each table by hand. Upon examining the plot, `dispersal_plt[[25]]`, for example we can see that we might want to separate the 2 distinct portions into 2 separate bouts. Looking that the bout table for that animal,
+
+[ARG: In the output table, the if the travel column is 0 = stationary, \# = movement bout. Bout = total travel events.]{.underline}
+
 ```{r}
 stat_travel$bout_tbl[[25]]
 ```
+
 we can see that the auto detection function has only assigned 1 bout to the whole timeline. We can simply add another row for the start of the second bout
+
 ```{r}
 stat_travel$bout_tbl[[25]] <- stat_travel$bout_tbl[[25]] %>% add_row(travel=0, bout=2, start=as.Date("2022-06-04"), avg_speed=NA, .after=1)
 
 stat_travel$bout_tbl[[25]]
 ```
+
 The last line of the bout table is the day after the last telemetry observation is observed. If you want to delete some data at the end, all you have to do is adjust that last `start` date. Now after examining all the plots, we will make the following adjustments:
+
 ```{r}
 ## Animal 22
 stat_travel$bout_tbl[[22]]$start[2] <- as.Date("2022-07-11")
@@ -106,11 +124,11 @@ stat_travel$bout_tbl[[2]] <- stat_travel$bout_tbl[[2]] %>%
   add_row(travel=0, bout=3, start=as.Date("2016-10-25"), .after=2)
 ```
 
-For animal 5, there seems to be quite a bit of error. So, it sometimes helps to increase the `migr_speed_cut` argument a little if there is to much "travel" selection and also increase `Gmax`, e.g., 
+For animal 5, there seems to be quite a bit of error. So, it sometimes helps to increase the `migr_speed_cut` argument a little if there is to much "travel" selection and also increase `Gmax`, e.g.,
+
 ```{r}
 stat_travel$bout_tbl[[5]] <-  cu_bout_det_mbc(locs$data[[5]], min_disp=20, migr_speed_cut=1.25, Gmax=5)
 ```
-
 
 Just to check we can re-plot the dispersion figures.
 
@@ -123,11 +141,13 @@ dispersal_plt <- foreach(i=1:nrow(stat_travel)) %do% {
 dispersal_plt 
 ```
 
-
 ### Save output for continuing later
+
 If you would would like to pause here and continue working later you should save the products so you don't have to repeat these steps.
+
 ```{r}
 stat_travel %>% unnest(cols=bout_tbl) %>% mutate(avg_speed = round(avg_speed,2)) %>% write_csv("processed_data/stat_travel.csv")
 save(stat_travel, file="processed_data/stat_travel.RData")
 ```
+
 Otherwise, you can continue with step 2 without saving.
