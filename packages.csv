@@ -4,6 +4,7 @@ mapview
 ggspatial
 crsuggest
 units
+mclust
 plotly
 sf
 janitor

@@ -28,7 +28,7 @@ The following chunk of code will check for the necessary packages (listed in `pa
 
 ```{r, output=FALSE}
 # Package names
-packages <- c("trip","tidyverse","mapview","ggspatial","crsuggest","units",
+packages <- c("trip","tidyverse","mapview","ggspatial","crsuggest","units","mclust",
               "plotly","sf","janitor","lubridate","crsuggest","doFuture","picMaps","rosm", "terra")
 
 # R package repositories
