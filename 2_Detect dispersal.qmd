@@ -46,7 +46,7 @@ dispersal_plt <- foreach(i=1:nrow(stat_travel)) %do% {
 }
 ```
 
-### Adjust bout tables
+### View movement bout tables
 
 The `cu_bout_det_mbc()` function does a fairly decent job at detecting migration transitions. However, it will often be mistaken. So the best thing to do is look at all the plots,
 
@@ -61,6 +61,8 @@ To examine individual dispersal plots, change number as needed:
 #| output: false
 dispersal_plt[5]
 ```
+
+### Adjust bout tables
 
 Then we can adjust them as necessary by hand. There are two ways to do this. (1) you can write out the data to a `.csv` file and perform edits there.
 
