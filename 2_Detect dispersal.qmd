@@ -59,7 +59,7 @@ To examine individual dispersal plots, change number as needed:
 
 ```{r}
 #| output: false
-dispersal_plt[5]
+dispersal_plt[25]
 ```
 
 ### Adjust bout tables
@@ -86,6 +86,17 @@ we can see that the auto detection function has only assigned 1 bout to the whol
 stat_travel$bout_tbl[[25]] <- stat_travel$bout_tbl[[25]] %>% add_row(travel=0, bout=2, start=as.Date("2022-06-04"), avg_speed=NA, .after=1)
 
 stat_travel$bout_tbl[[25]]
+```
+
+[ARG: Is this correct? To replot for individual turtle]{.underline}
+
+```{r}
+#| output: false
+dispersal_plt <- foreach(i=1:nrow(stat_travel)) %do% {
+  {cu_plot_disp(locs$data[[25]], stat_travel$bout_tbl[[25]]) + ggtitle(paste0("ID:",locs$deploy_id[[25]], " / row: ", i))} %>% ggplotly()
+}
+
+dispersal_plt [25]
 ```
 
 The last line of the bout table is the day after the last telemetry observation is observed. If you want to delete some data at the end, all you have to do is adjust that last `start` date. Now after examining all the plots, we will make the following adjustments:
