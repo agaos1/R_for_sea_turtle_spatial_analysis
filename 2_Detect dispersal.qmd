@@ -154,6 +154,13 @@ dispersal_plt <- foreach(i=1:nrow(stat_travel)) %do% {
 dispersal_plt 
 ```
 
+Re-plot specifically for turtle \[5\]
+
+```{r}
+#| output: false
+dispersal_plt[5]
+```
+
 ### Save output for continuing later
 
 If you would would like to pause here and continue working later you should save the products so you don't have to repeat these steps.
